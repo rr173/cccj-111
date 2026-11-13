@@ -1,0 +1,30 @@
+{
+  "destinations": {
+    "P1": 4,
+    "P2": 4,
+    "undetermined": 4
+  },
+  "error": null,
+  "inputs": {
+    "barcodes": "data/demux/alternating/barcodes.tsv",
+    "r1": "data/demux/alternating/R1.fastq.gz",
+    "r2": "data/demux/alternating/R2.fastq.gz"
+  },
+  "outputs": {
+    "directory": "output/demux_alt",
+    "fastq_layout": "fastq/<去向>/R1.fastq.gz 与 R2.fastq.gz",
+    "table": "demux_table.tsv"
+  },
+  "pairs_completed": 12,
+  "parameters": {
+    "barcode_length": 4,
+    "max_mismatches": 0,
+    "max_open": 1,
+    "umi_length": 2
+  },
+  "schema_version": "1.0",
+  "status": "success",
+  "unassigned_reasons": {
+    "barcode_unmatched": 4
+  }
+}

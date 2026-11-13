@@ -1,0 +1,11 @@
+pair_index	read_name	observed_barcode	umi	min_distance	nearest_samples	destination	reason
+1	read1	AAAA	ACGT	0	ALPHA	ALPHA	
+2	read2	AATA	GGGG	1	ALPHA	ALPHA	
+3	read3	AAAG	TTTT	1	ALPHA	ALPHA	
+4	read4	AACA	CCCC	1	ALPHA,BETA	undetermined	ambiguous_sample
+5	read5	TTTT	AAAA	3	ALPHA	undetermined	barcode_unmatched
+6	read6	AANA	CGTA	1	ALPHA	ALPHA	
+7	read7	AAAA	ACGN			undetermined	umi_contains_n
+8	read8					undetermined	read_too_short
+9	read9	AAAA	ACGT			undetermined	no_insert
+10	read10	AACC	GGCC	0	BETA	BETA	

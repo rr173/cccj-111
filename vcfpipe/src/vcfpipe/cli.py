@@ -6,13 +6,23 @@ python -m vcfpipe.cli run \
     --fasta data/ref/syn37.fa --contigs data/ref/contigs.json \
     --samples data/input/sample_sheet.csv --priority data/input/caller_priority.json \
     --out-root output --rule-version v1
+
+python -m vcfpipe.cli demux \
+    --r1 data/demux/R1.fastq.gz --r2 data/demux/R2.fastq.gz \
+    --barcodes data/demux/barcodes.tsv --out-dir output/demux_demo \
+    --umi-length 4 --max-mismatches 1 --max-open 4
 """
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 
 from .assoc import AssocInputError, run_assoc, to_jsonable, write_report_files
+from .demux import (
+    DemuxInputError, MAX_MAX_OPEN, MAX_UMI_LENGTH, MIN_MAX_OPEN,
+    MIN_UMI_LENGTH, run_demux,
+)
 from .pipeline import VersionConflict, run_pipeline
 from .query import Dataset
 
@@ -28,6 +38,23 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--priority", required=True)
     run.add_argument("--out-root", required=True)
     run.add_argument("--rule-version", default="v1", choices=["v1", "v2"])
+
+    d = sub.add_parser("demux", help="测序数据接收：校验双端 FASTQ、"
+                                     "按条码拆分混合文库、提取 UMI")
+    d.add_argument("--r1", required=True, help="R1 FASTQ（普通或 gzip）")
+    d.add_argument("--r2", required=True, help="R2 FASTQ（普通或 gzip）")
+    d.add_argument("--barcodes", required=True,
+                   help="条码登记表（TSV，表头 barcode/sample）")
+    d.add_argument("--out-dir", required=True,
+                   help="接收输出目录（必须不存在或为空）")
+    d.add_argument("--umi-length", required=True, type=int, metavar="U",
+                   help=f"UMI 长度，合法范围 [{MIN_UMI_LENGTH}, "
+                        f"{MAX_UMI_LENGTH}]")
+    d.add_argument("--max-mismatches", required=True, type=int, metavar="M",
+                   help="允许的条码错配数，合法范围 [0, 登记条码长度]")
+    d.add_argument("--max-open", required=True, type=int, metavar="K",
+                   help=f"同时打开的去向输出对上限（undetermined 也占一个），"
+                        f"合法范围 [{MIN_MAX_OPEN}, {MAX_MAX_OPEN}]")
 
     q = sub.add_parser("query", help="对已生成数据集做只读查询")
     q.add_argument("--dataset", required=True)
@@ -71,6 +98,24 @@ def main(argv: list[str] | None = None) -> int:
             "dataset_id": manifest["dataset_id"],
             "totals": manifest["totals"],
         }, indent=2, ensure_ascii=False))
+        return 0
+
+    if args.cmd == "demux":
+        try:
+            summary = run_demux(
+                args.r1, args.r2, args.barcodes, args.out_dir,
+                umi_length=args.umi_length,
+                max_mismatches=args.max_mismatches,
+                max_open=args.max_open)
+        except DemuxInputError as exc:
+            parser.exit(2, f"接收配置错误: {exc}\n")
+        except OSError as exc:
+            parser.exit(1, f"接收失败（输出错误）: {exc}\n")
+        print(json.dumps(summary, indent=2, ensure_ascii=False,
+                         sort_keys=True))
+        if summary["status"] != "success":
+            print(f"接收失败: {summary['error']['message']}", file=sys.stderr)
+            return 1
         return 0
 
     if args.cmd == "assoc":

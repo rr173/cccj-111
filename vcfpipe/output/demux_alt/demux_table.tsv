@@ -1,0 +1,13 @@
+pair_index	read_name	observed_barcode	umi	min_distance	nearest_samples	destination	reason
+1	alt01	AAAA	AC	0	P1	P1	
+2	alt02	CCCC	CA	0	P2	P2	
+3	alt03	TTTT	GT	4	P1,P2	undetermined	barcode_unmatched
+4	alt04	AAAA	TG	0	P1	P1	
+5	alt05	CCCC	AA	0	P2	P2	
+6	alt06	TTTT	CC	4	P1,P2	undetermined	barcode_unmatched
+7	alt07	AAAA	GG	0	P1	P1	
+8	alt08	CCCC	TT	0	P2	P2	
+9	alt09	TTTT	AG	4	P1,P2	undetermined	barcode_unmatched
+10	alt10	AAAA	GA	0	P1	P1	
+11	alt11	CCCC	CT	0	P2	P2	
+12	alt12	TTTT	TC	4	P1,P2	undetermined	barcode_unmatched

@@ -1,7 +1,10 @@
 # vcfpipe：确定性 VCF 变异规范化与队列整合管线
 
 把来自不同实验批次、不同 caller、不同 assembly 的小型 VCF，整合为统一
-参考版本的**变异事实表**与**样本基因型矩阵**。仅依赖 Python 3.11 标准库。
+参考版本的**变异事实表**与**样本基因型矩阵**；上游带一个**测序数据接收
+环节**（`demux`）：校验双端 FASTQ、按条码把混合文库拆回各样本并提取
+UMI，拆出的每样本 read 对即可交给外部比对/变异调用。仅依赖
+Python 3.11 标准库。
 
 ## 1. 目录结构
 
@@ -17,11 +20,15 @@ vcfpipe/
 │   ├── pipeline.py    端到端编排、合并、分区、清单与版本保护
 │   ├── query.py       范围查询 / 样本切片 / source-to-output 追踪
 │   ├── assoc.py       基因级携带者关联分析（Fisher 精确检验 + BH 校正）
+│   ├── demux.py       测序数据接收：FASTQ 校验、按条码拆分、UMI 提取
 │   └── cli.py         命令行入口
 ├── data/
 │   ├── ref/           合成参考 syn37/syn38 与 contig 字典
 │   ├── input/         4 份合成 VCF、样本表、caller 优先级
-│   └── assoc/         关联分析演示输入（标签表、基因/可判读区间 BED）
+│   ├── assoc/         关联分析演示输入（标签表、基因/可判读区间 BED）
+│   └── demux/         接收演示输入（合成序列）：10 对手算样例 +
+│                      alternating/ 去向交替样例 + 确定性生成脚本
+├── benchmarks/        run_benchmark.py：十万对级生成输入的规模/内存演示
 ├── tests/             手算单元测试 + 端到端集成测试（含独立解析器）
 ├── run_pipeline.py    本地 runner（-I 隔离模式下定位 src 包）
 └── output/            运行后生成，按 {assembly}_{rule} 分数据集版本
@@ -267,7 +274,192 @@ GENE_D  zero_denominator（有效分母为零的组: case；该基因不参与�
 GENE_F  no_candidate_loci
 ```
 
-## 7. 测试
+## 7. 测序数据接收（demux）：混合文库拆分与 UMI 提取
+
+`demux` 子命令是变异管线的**上游接收环节**。实验室交来成对的
+R1/R2 FASTQ，R1 的 5' 端依次是 B 碱基的样本条码和 U 碱基的 UMI
+（标记原始分子的短序列）。本环节把混合文库拆回各个样本、剥离
+条码/UMI 并把 UMI 记入两端头行；拆出的每样本 R1/R2 对即可交给
+外部比对器与变异调用，产出的 VCF 再由 `run` 子命令规范化整合。
+本环节不调用比对器，只保证接收到的数据结构完整、配对严格、
+去向可审计。演示与基准只用**合成序列**。
+
+**环境与启动**：无需安装任何第三方包——与管线其余部分一样只用
+Python 3.11 标准库（`gzip`/`zlib`/`csv`/`json` 等）。在干净
+Python 3.11 环境中克隆本仓库后，于项目根目录直接执行下文命令
+即可（`run_pipeline.py` 会在 `-I` 隔离模式下自行定位 `src` 包）。
+
+### 7.1 输入与参数
+
+```bash
+python3 -I run_pipeline.py demux \
+  --r1 R1.fastq.gz --r2 R2.fastq.gz \
+  --barcodes barcodes.tsv \
+  --umi-length 4 --max-mismatches 1 --max-open 4 \
+  --out-dir output/demux_demo
+```
+
+* `--r1/--r2`：普通或 gzip 压缩的 FASTQ，按内容魔数识别，与文件
+  名无关；支持多 member gzip（例如追加写出的文件）。
+* `--barcodes`：TSV 登记表，表头恰为 `barcode`、`sample` 两列。
+  条码只能由 A/C/G/T 组成（小写归一为大写）且全部等长，其长度即
+  B；一个样本可登记多个条码，同一条码不得重复登记；样本名必须能
+  安全用作文件名——白名单 `[A-Za-z0-9._-]`、须以字母或数字开头，
+  显式拒绝路径分隔符与 `..`，`undetermined` 为保留名。
+* `--umi-length U`：UMI 长度，合法范围 **[0, 64]**；U=0 时不追加
+  RX 标签。
+* `--max-mismatches M`：允许的条码错配数，合法范围 **[0, B]**。
+* `--max-open K`：同时打开的去向输出对上限（undetermined 也占一
+  个），合法范围 **[1, 256]**。
+* `--out-dir`：接收输出目录，必须不存在或为空——**非空目录在开始
+  前拒绝**（退出码 2），避免把两批接收混进同一目录。
+
+### 7.2 校验与配对语义
+
+* FASTQ 按四行一条记录解析：头行 `@`、序列、`+`、质量。检查记录
+  完整（截断即失败）、序列与质量等长、碱基 ∈ ACGTN（小写归一）、
+  质量字符 ∈ Phred 33..126。
+* 双端**逐条锁步对应**，不分别过滤再凑对：read 名 = 头行第一个
+  空白分隔字段去掉末尾 `/1`、`/2`，两端必须相等；头行其余信息
+  原样保留。
+* 两端**同时**耗尽才算正常结束。任一端多出记录、损坏的 gzip 尾
+  部、截断的记录、名字不一致，都使本次接收失败，错误带**文件、
+  记录序号与原因**（gzip 流逐 member 手工解析并自验 CRC32/ISIZE，
+  损坏被定位到正在读取的记录）。
+* 全程流式：任何时刻只持有当前记录，不整载输入。
+
+### 7.3 拆分判定（每对）
+
+取 R1 前 B 碱基为观测条码、随后 U 碱基为 UMI，按序判定：
+
+| # | 条件 | 去向（原因码） |
+|---|---|---|
+| 1 | `len(R1) < B+U` | undetermined（`read_too_short`） |
+| 2 | `len(R1) == B+U`，截取后没有剩余序列 | undetermined（`no_insert`） |
+| 3 | UMI 含 N | undetermined（`umi_contains_n`） |
+| 4 | 最近登记条码的 Hamming 距离 > M | undetermined（`barcode_unmatched`） |
+| 5 | 距离合格但最近条码属于多个不同样本 | undetermined（`ambiguous_sample`） |
+| 6 | 最近条码（可多个并列）同属一个样本 | 分配该样本 |
+
+观测值里的 N 与任何登记碱基都算一次错配。只有**恰好**达到最小距
+离的登记条码算“最近”——不把阈值内所有条码都当最近，也不按登记
+顺序取第一个；同一样本的多条码并列可以分配，跨样本并列不能猜。
+
+### 7.4 输出
+
+```
+<out-dir>/
+├── fastq/<去向>/R1.fastq.gz 与 R2.fastq.gz   每个去向一对
+├── demux_table.tsv        逐对去向表（随处理流式写出）
+└── summary.json           批次摘要
+```
+
+* 分配成功的对：R1 序列/质量同步去掉前 B+U 个字符，R2 不裁剪；
+  提取到的 UMI 以 `RX:Z:<值>` 附在**两端**头行末尾（第一个空白
+  字段不变，两端仍能认出同一 read）。无法分配的对两端**原样**
+  写入 `undetermined`。同一去向内维持输入顺序。
+* 同时打开的去向输出对不超过 K 个（LRU 回收）；关闭后重开以
+  **追加**（新 gzip member）继续写——标准 gzip 读取器能一次读回
+  全部内容，不会截掉之前的 read，也不重压旧文件。
+* `demux_table.tsv` 列：`pair_index / read_name / observed_barcode
+  / umi / min_distance / nearest_samples / destination / reason`；
+  短 read 缺少的值留空。
+* `summary.json`：已完整处理的对数、各去向数量、各无法分配原因
+  的数量、运行状态。**只有双端均正常耗尽且全部输出成功关闭后**
+  才写 `success`；输入损坏或输出错误时，已生成内容保留供排查，
+  摘要明确 `failed` 并带实际进度与错误位置。
+* 退出码：0 成功；1 接收失败（数据损坏/输出错误，摘要为
+  `failed`）；2 接收配置错误（登记表、参数、目标目录）。
+
+### 7.5 手算演示（data/demux，B=4，U=4，M=1）
+
+登记表：`AAAA→ALPHA`、`AAAT→ALPHA`（同一样本多条码）、
+`AACC→BETA`。10 对合成 read 的预期（`tests/test_demux.py`
+逐字段回归）：
+
+| read | R1 5' 端 | 判定 |
+|---|---|---|
+| read1 | `AAAA`+UMI | 精确匹配 → ALPHA，d=0 |
+| read2 | `AATA` | 单错配纠正 → ALPHA，d=1 |
+| read3 | `AAAG` | 距 AAAA、AAAT 同为 1，同属 ALPHA → 同样本并列，分配 |
+| read4 | `AACA` | 距 AAAA(ALPHA)、AACC(BETA) 同为 1 → 跨样本并列，undetermined |
+| read5 | `TTTT` | 最近 d=3 > 1 → undetermined |
+| read6 | `AANA` | N 算一次错配，d=1 → ALPHA |
+| read7 | `AAAA`+`ACGN` | UMI 含 N → undetermined |
+| read8 | `AAA`（3 碱基） | 不足 B+U → undetermined |
+| read9 | `AAAA`+`ACGT`（恰 8） | 截取后无剩余 → undetermined |
+| read10 | `AACC` | 精确匹配 → BETA |
+
+运行与直接解压核对：
+
+```bash
+python3 -I run_pipeline.py demux \
+  --r1 data/demux/R1.fastq.gz --r2 data/demux/R2.fastq.gz \
+  --barcodes data/demux/barcodes.tsv \
+  --umi-length 4 --max-mismatches 1 --max-open 4 \
+  --out-dir output/demux_demo
+
+# summary：ALPHA=4、BETA=1、undetermined=5，五种无法分配原因各 1
+gzip -dc output/demux_demo/fastq/ALPHA/R1.fastq.gz
+# @read1/1 1:N:0:FCX RX:Z:ACGT      <- 原头行信息保留，UMI 附在末尾
+# TTTTGGGG                          <- 前 8 个碱基（条码+UMI）已剥离
+# +
+# IJKLMNOP                          <- 质量同步裁掉前 8 个字符
+gzip -dc output/demux_demo/fastq/ALPHA/R2.fastq.gz | head -4
+# @read1/2 2:N:0:FCX RX:Z:ACGT      <- R2 头行同样带 RX，不裁剪
+```
+
+### 7.6 句柄回收演示（K=1，data/demux/alternating）
+
+12 对在 P1、P2、undetermined 三个去向间反复交替，`--max-open 1`
+迫使每个去向被反复关闭重开：
+
+```bash
+python3 -I run_pipeline.py demux \
+  --r1 data/demux/alternating/R1.fastq.gz \
+  --r2 data/demux/alternating/R2.fastq.gz \
+  --barcodes data/demux/alternating/barcodes.tsv \
+  --umi-length 2 --max-mismatches 0 --max-open 1 \
+  --out-dir output/demux_alt
+
+python3 - <<'EOF'
+import gzip
+for d in ("P1", "P2", "undetermined"):
+    for mate in ("R1", "R2"):
+        p = f"output/demux_alt/fastq/{d}/{mate}.fastq.gz"
+        with gzip.open(p, "rt") as fh:      # 标准读取器读回全部 member
+            names = [l.split()[0][1:] for l in fh if l.startswith("@")]
+        print(d, mate, names)
+EOF
+# P1 R1 ['alt01/1', 'alt04/1', 'alt07/1', 'alt10/1']   （保序）
+# P1 R2 ['alt01/2', 'alt04/2', 'alt07/2', 'alt10/2']   （成对）
+# ... 每个文件含 4 个 gzip member = 被回收重开 4 次，内容完整
+```
+
+### 7.7 规模与内存（合成基准）
+
+`benchmarks/run_benchmark.py` 生成固定种子的合成双端 FASTQ（48 个
+样本、8bp 条码、8bp UMI、R1 插入 92bp、R2 100bp；约 85% 可分配、
+10% 含 N、5% 随机条码），随后流式拆分并报告墙钟与峰值内存
+（`resource.ru_maxrss`）：
+
+```bash
+python3 -I benchmarks/run_benchmark.py --pairs 120000
+python3 -I benchmarks/run_benchmark.py --pairs 480000
+```
+
+本机实测（K=8，去向 49 个 > K，句柄池持续回收）：
+
+| 对数 | 输入 gzip | 拆分耗时 | 吞吐 | 峰值内存 |
+|---|---|---|---|---|
+| 120,000 | 8.9 MB | ~10 s | ~1.2 万对/s | **18.5 MB** |
+| 480,000 | 35.5 MB | ~79 s | ~0.6 万对/s | **18.5 MB** |
+
+输入放大 4 倍，峰值内存不变——处理是流式的，内存占用与输入规模
+无关。输出守恒（各去向对数之和 == 输入对数）与最大去向文件的可
+完整读回由脚本自动断言。
+
+## 8. 测试
 
 ```bash
 python3 -I -m unittest discover -s tests -v
@@ -285,3 +477,12 @@ GT/AD 变更后的冲突重跑逐文件比对、写入中途 SIGKILL、相同/�
 调用不被掩码、重叠基因与跨边界删失归属）、独立于产品统计实现的小表
 枚举核对双侧 Fisher、含相同概率的多基因 BH 校正与排序、全部非法输入
 的报错，以及组别冲突/一组分母归零/已发布目录零改动的子进程命令回归。
+
+接收环节另有 68 个回归（`tests/test_demux.py`）：登记表全部非法情形
+（非 ACGT/不等长/重复登记/路径穿越样本名）、参数合法范围、FASTQ 逐条
+解析（截断、序列质量不等长、非法碱基/质量字符、CRLF、gzip 尾部截断/
+CRC 损坏/尾部垃圾的精确记录序号、多 member 读回）、双端错名与一端先
+结束的失败摘要、10 对手算样例逐字段核对（含解压核对 read 名/序列/
+质量/RX 标签）、K=1 句柄回收后的保序成对与 member 计数、句柄池单元
+行为、U=0 与错配边界、目标目录规则，以及 CLI 退出码（0/1/2）的子进程
+回归。

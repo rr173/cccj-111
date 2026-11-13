@@ -1,0 +1,20 @@
+{
+  "candidate_pairs": 8,
+  "distinct_shingles": 33,
+  "documents": 21,
+  "exact_comparisons": 8,
+  "kept": 12,
+  "kept_jsonl_lines": 15,
+  "outputs": {
+    "dispositions": "dispositions.jsonl",
+    "kept": "kept.jsonl",
+    "summary": "summary.json"
+  },
+  "pairwise_total": 210,
+  "redundant": 6,
+  "schema": "1.0",
+  "threshold": "1/2",
+  "threshold_p": 1,
+  "threshold_q": 2,
+  "too_short": 3
+}

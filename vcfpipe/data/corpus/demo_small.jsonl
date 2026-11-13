@@ -1,0 +1,21 @@
+{"id":"chain-a","quality":40,"text":"alpha beta gamma delta epsilon","source":"hand"}
+{"id":"chain-b","quality":30,"text":"beta gamma delta epsilon zeta"}
+{"id":"multi-k1","quality":29,"text":"m1 m2 m3 m4 k1"}
+{"id":"multi-k2","quality":28,"text":"m2 m3 m4 r k2"}
+{"id":"fw-1","quality":27,"text":"Ｈｅｌｌｏ Ｗｏｒｌｄ Ｆｏｏ Ｂａｒ"}
+{"id":"fw-2","quality":27,"text":"HELLO WORLD FOO BAR"}
+{"id":"multi-r","quality":26,"text":"m1 m2 m3 m4 r"}
+{"id":"edge-a","quality":25,"text":"e1 e2 e3 xa"}
+{"id":"edge-b","quality":24,"text":"e1 e2 e3 xb"}
+{"id":"punct-1","quality":23,"text":"red, green, blue; yellow"}
+{"id":"punct-2","quality":22,"text":"red。。green！！blue……yellow","note":"标点全作分隔"}
+{"id":"chain-c","quality":21,"text":"gamma delta epsilon zeta eta"}
+{"id":"dup-1","quality":20,"text":"na na na na na batman"}
+{"id":"dup-2","quality":19,"text":"na na na batman"}
+{"id":"short-empty-1","quality":18,"text":""}
+{"id":"short-empty-2","quality":17,"text":""}
+{"id":"short-two","quality":16,"text":"just two"}
+{"id":"tpl-1","quality":15,"text":"通用 模板 条款 第一 第二 第三 第四 第五 甲"}
+{"id":"tpl-2","quality":14,"text":"通用 模板 条款 第一 第二 第三 第四 第五 乙"}
+{"id":"uniq-1","quality":13,"text":"orchid maple river quartz lantern","meta":{"lang":"en","batch":7}}
+{"id":"uniq-2","quality":12,"text":"violet otter ember cipher walnut"}

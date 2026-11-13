@@ -17,6 +17,10 @@ python -m vcfpipe.cli demux \
     --r1 data/demux/R1.fastq.gz --r2 data/demux/R2.fastq.gz \
     --barcodes data/demux/barcodes.tsv --out-dir output/demux_demo \
     --umi-length 4 --max-mismatches 1 --max-open 4
+
+python -m vcfpipe.cli dedup \
+    --corpus data/corpus/demo_small.jsonl --threshold 1/2 \
+    --out-dir output/dedup_demo
 """
 from __future__ import annotations
 
@@ -26,6 +30,7 @@ import sys
 
 from .annot import AnnotInputError, run_annot
 from .assoc import AssocInputError, run_assoc, to_jsonable, write_report_files
+from .dedup import DedupInputError, run_dedup
 from .demux import (
     DemuxInputError, MAX_MAX_OPEN, MAX_UMI_LENGTH, MIN_MAX_OPEN,
     MIN_UMI_LENGTH, run_demux,
@@ -123,6 +128,19 @@ def main(argv: list[str] | None = None) -> int:
                         "DP 缺失或低于该值时整调用视为未知")
     t.add_argument("--out-dir", required=True,
                    help="输出目录（必须不存在或为空；staging 成功后原子发布）")
+
+    dd = sub.add_parser(
+        "dedup", help="正文语料清理：三词片段 Jaccard 去重（磁盘前缀"
+                      "候选检索；只清理正文，不涉及变异计算）")
+    dd.add_argument("--corpus", required=True,
+                    help="JSONL 语料：每行一个对象，含 id/quality/text，"
+                         "其余字段随保留记录原样交付")
+    dd.add_argument("--threshold", required=True, metavar="P/Q",
+                    help="相似度阈值（p、q 为正整数且 p<=q，如 1/2）")
+    dd.add_argument("--out-dir", required=True,
+                    help="输出目录（必须不存在或为空）")
+    dd.add_argument("--keep-work", action="store_true",
+                    help="保留临时 SQLite 工作库（默认运行完删除）")
 
     rp = sub.add_parser(
         "replan", help="分区重算规划：登记来源内容指纹、回答目标分区还需算"
@@ -239,6 +257,18 @@ def main(argv: list[str] | None = None) -> int:
         except TrioRecordError as exc:
             parser.exit(1, f"家系筛查记录错误: {exc}\n")
         print(json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True))
+        return 0
+
+    if args.cmd == "dedup":
+        try:
+            summary = run_dedup(args.corpus, args.threshold, args.out_dir,
+                                keep_work=args.keep_work)
+        except DedupInputError as exc:
+            parser.exit(2, f"语料清理输入错误: {exc}\n")
+        except OSError as exc:
+            parser.exit(1, f"语料清理失败（输出错误）: {exc}\n")
+        print(json.dumps(summary, indent=2, ensure_ascii=False,
+                         sort_keys=True))
         return 0
 
     if args.cmd == "replan":

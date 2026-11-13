@@ -5,8 +5,9 @@
 环节**（`demux`）：校验双端 FASTQ、按条码把混合文库拆回各样本并提取
 UMI，拆出的每样本 read 对即可交给外部比对/变异调用。另有**转录本编码
 后果注释**（`annot`）：从变异表、转录本定义与 FASTA 出发，在本机给出
-每个转录本上改动到的密码子与氨基酸，不查询在线注释库。仅依赖
-Python 3.11 标准库。
+每个转录本上改动到的密码子与氨基酸，不查询在线注释库。另有**正文语料
+清理**（`dedup`）：对采集队列的正文 JSONL 做三词片段 Jaccard 去重，
+磁盘前缀候选检索，不涉及变异计算。仅依赖 Python 3.11 标准库。
 
 ## 1. 目录结构
 
@@ -26,6 +27,7 @@ vcfpipe/
 │   ├── trio.py        家系三人组遗传一致性筛查（补全枚举，流式）
 │   ├── annot.py       转录本编码后果注释（剪接、坐标、密码子后果）
 │   ├── replan.py      分区重算规划：内容指纹账本、依赖闭包规划、完成确认
+│   ├── dedup.py       正文语料清理：三词片段 Jaccard 去重 + 磁盘前缀检索
 │   └── cli.py         命令行入口
 ├── data/
 │   ├── ref/           合成参考 syn37/syn38、annot_syn（注释演示用）
@@ -36,6 +38,7 @@ vcfpipe/
 │   │                  确定性生成脚本 make_demo_inputs.py
 │   └── demux/         接收演示输入（合成序列）：10 对手算样例 +
 │                      alternating/ 去向交替样例 + 确定性生成脚本
+│   └── corpus/        语料清理演示：16 篇手写小语料 demo_small.jsonl
 ├── tools/
 │   ├── trio_exhaustive_check.py  独立小范围穷举核对器（不导入产品补全/
 │   │                              传递函数，逐行复核明细）
@@ -43,9 +46,13 @@ vcfpipe/
 │   ├── annot_make_notes.py        生成“核对笔记”（外显子→CDS→翻译）
 │   ├── run_annot_demo.py          运行注释演示并保存失败路径回归
 │   ├── run_replan_demo.py         分区重算规划的合成账本操作稿（逐步演示）
-│   └── replan_independent_check.py 重算规划的独立朴素核对器（不导入产品
-│                                   规划函数，朴素展开 + 回执比较）
-├── benchmarks/        run_benchmark.py：十万对级生成输入的规模/内存演示
+│   ├── replan_independent_check.py 重算规划的独立朴素核对器（不导入产品
+│   │                                规划函数，朴素展开 + 回执比较）
+│   ├── run_dedup_demo.py          语料清理演练：先列片段与预期，再运行读回
+│   └── dedup_independent_check.py 语料清理独立慢速核对器（不导入产品分词/
+│                                   候选/交集函数，全量扫描在先保留项）
+├── benchmarks/        run_benchmark.py：demux 十万对级规模/内存演示；
+│                      run_dedup_benchmark.py：dedup 三万篇候选过滤演示
 ├── tests/             手算单元测试 + 端到端集成测试（含独立解析器）
 ├── run_pipeline.py    本地 runner（-I 隔离模式下定位 src 包）
 └── output/            运行后生成，按 {assembly}_{rule} 分数据集版本
@@ -736,6 +743,18 @@ CRC 损坏/尾部垃圾的精确记录序号、多 member 读回）、双端错�
 完成确认（改源/改 recipe/上游失效/篡改票据均拒收且旧回执不变）、CLI
 退出码（0/1/2）子进程回归，以及 `tools/replan_independent_check.py`
 （不调用产品规划函数的独立朴素展开 + 回执比较）对小账本的一致性核对
+
+语料清理另有 39 个回归（`tests/test_dedup.py`）：标点/全角/大小写
+分词与 NFKC+casefold 口径、重复片段只算一个、片段编码序与三元组字
+典序同构、前缀长度与长度界取整、阈值恰好相等与刚低于、非传递三篇
+链、同质量 id 决胜（含非 ASCII id 码点序）、一个冗余命中两个保留
+项的相似度比较与同分决胜、冗余项不入索引、短文本（含两篇空文）不
+互删、附带字段与 CRLF 行尾逐字节保留、重排输入后处置表/保留清单/
+计数一致、重复 id 与全部非法字段/非法阈值的行号报错与拒绝（不创
+建输出目录）、CLI 退出码子进程回归，以及
+`tools/dedup_independent_check.py`（不调用生产分词/候选/交集函数
+的慢速全量核对器）对多阈值多打乱合成语料与手写小语料的一致性
+核对。
 与篡改检出。合成账本操作稿见 `tools/run_replan_demo.py`（第 11.7 节）。
 
 ## 10. 家系三人组遗传一致性筛查（trio）
@@ -1073,3 +1092,190 @@ recipe/上游失效/篡改票据均拒收且旧回执不变）、CLI 退出码�
 子进程回归，以及独立核对器对产品规划结果的一致性与篡改检出。
 
 
+
+## 12. 正文语料清理（dedup）：三词片段去重与磁盘候选检索
+
+采集队列里有大量正文几乎一样的记录：转载会加减几个词，模板内容又
+被多个来源重复发送。`dedup` 子命令对 JSONL 语料做**内容去重**：
+逐篇与“已保留”正文比较，达到相似度阈值的记为 `redundant` 并指向
+见证；短文本只留档不参与比较。本作业只做正文清理与磁盘候选检索，
+**不涉及变异计算**。仅依赖 Python 3.11 标准库 + SQLite（临时库落
+盘），不依赖外部搜索服务；`run`/`query`/`demux`/`assoc`/`annot`/
+`trio`/`replan` 等既有入口不受影响。
+
+### 12.1 安装与运行
+
+无需安装第三方依赖：Python 3.11+ 标准库即可。仓库为 src 布局，经
+项目自带 runner（`-I` 隔离模式下也能定位包）或设 `PYTHONPATH` 后
+用模块入口调用：
+
+```bash
+# 方式一：项目 runner（推荐，-I 隔离）
+python3 -I run_pipeline.py dedup \
+  --corpus data/corpus/demo_small.jsonl \
+  --threshold 1/2 \
+  --out-dir output/dedup_demo
+
+# 方式二：模块入口（注意 -I 会忽略 PYTHONPATH，二者只取其一）
+PYTHONPATH=src python3 -m vcfpipe.cli dedup \
+  --corpus data/corpus/demo_small.jsonl --threshold 1/2 \
+  --out-dir output/dedup_demo
+```
+
+参数：
+
+| 参数 | 含义 |
+|---|---|
+| `--corpus` | JSONL 语料（UTF-8），每行一个对象 |
+| `--threshold P/Q` | 相似度阈值，p、q 正整数且 p<=q（如 `1/2`） |
+| `--out-dir` | 输出目录（必须不存在或为空） |
+| `--keep-work` | 可选：保留临时 SQLite 工作库（默认删除） |
+
+退出码：0 成功；2 输入/配置错误（语料校验失败、阈值非法、输出目
+录非空）；1 其它 I/O 失败。
+
+### 12.2 输入契约
+
+每行一个 JSON 对象：
+
+* `id`：非空字符串，全库唯一；
+* `quality`：64 位有符号整数（**不接受 bool**，浮点、超界同样拒绝）；
+* `text`：字符串；
+* 其余字段任意，随保留记录**原样**交付（见 `kept.jsonl`）。
+
+无法解析的行、字段类型错误、重复 id：逐条指出行号并**拒绝本次作
+业**（退出码 2，不创建输出目录），不能把跳过当作清理成功。阈值
+只接受 `p/q` 形式；相似度判断全部使用整数交叉乘法
+（`intersection*q >= p*union`），不经过浮点。
+
+### 12.3 比较口径
+
+1. `text` 先做 Unicode NFKC，再 casefold（**仅用于比较**，不改写
+   原文）；
+2. token = Unicode 类别以 `L` 或 `N` 开头的连续字符段，其余字符
+   一律作分隔，连续分隔不产生空 token；
+3. 文档 = 连续三个 token 组成的片段（三词 shingle）的**集合**：
+   同一片段重复出现只算一个；比较的是片段**原值**（JSON 编码文
+   本落库、等值连接），不使用任何摘要/指纹，不存在碰撞误判；
+4. 少于三个 token 的记录标 `too_short`：保留原文但不加入去重索
+   引，也不与任何记录比较（两篇空文不会因此被合并）。
+
+### 12.4 清理顺序与判定
+
+按 `quality` 从大到小、同分按 `id` 的 Unicode 字典序（码点序）
+逐篇考察，**输入行序不影响任何决定**。对每篇正常文档 A：若没有
+任何**已保留**正常文档 B 使 `Jaccard(A,B) = |A∩B|/|A∪B| >= p/q`
+（恰好等于也算重复），则保留 A；否则记 `redundant`，见证为已保
+留文档中 Jaccard 最高者，同分时按清理顺序取最早。冗余文档从此
+不进入保留索引、不参与后续判定——不是先求连通分量再每组留一
+篇。例如阈值 1/2、质量依次降低的 `a b c d e` / `b c d e f` /
+`c d e f g`：中间一篇归第一篇（2/4），第三篇仍留下（与第一篇
+只有 1/5）。
+
+### 12.5 候选检索：前缀过滤 + 长度过滤（完备，不漏真候选）
+
+先统计每个片段的文档频次 df，按 **(df 升序, 片段三元组字典序)**
+建立整个作业共用的严格序。文档 X 的**前缀** P(X) = 按该序排序后
+的前 `|X| - ceil(p*|X|/q) + 1` 个片段。已保留文档的前缀片段进磁
+盘倒排；新文档只拿自己的前缀片段去倒排取候选（磁盘临时表去
+重），再施加长度过滤 `ceil(p*|A|/q) <= |B| <= floor(q*|A|/p)`，
+最后对幸存者计算精确交并集。
+
+**为什么达到门槛的两篇必定共享前缀中的某个片段**：若
+`Jaccard(A,B) >= p/q`，则 `|A∩B| >= p*|A∪B|/q`；又 `|A∪B|` 不
+小于 `|A|`、`|B|`，故 `|A∩B| >= ceil(p*|A|/q) = tA` 且
+`|A∩B| >= ceil(p*|B|/q) = tB`。设 x 为 P(A) 中位次最大的元素
+（A 中比它大的恰有 tA-1 个），y 为 P(B) 中位次最大的元素，不妨
+x 在共享序上不大于 y。A∩B 中比 x 大的元素至多 tA-1 个，故至少
+有 `|A∩B| - (tA-1) >= 1` 个元素 z 的位次不超过 x。这个 z 既在
+P(A) 也在 P(B) 中——A 的前缀探针必命中 B 已索引的前缀片段。
+
+**长度上下界的取整**：`Jaccard <= min(|A|,|B|)/max(|A|,|B|)`，
+要它 `>= p/q`：当 `|B| <= |A|` 需 `q*|B| >= p*|A|`，即
+`|B| >= ceil(p*|A|/q)`；当 `|B| >= |A|` 需 `p*|B| <= q*|A|`，即
+`|B| <= floor(q*|A|/p)`。
+
+不用抽样、MinHash 估计或“候选截前几个”代替完备检索；高频模板
+造成大量真实候选时只会变慢，不会漏结果。冗余项与 too_short 项不
+进入保留索引。
+
+### 12.6 输出结构
+
+`--out-dir` 下三个文件：
+
+* `kept.jsonl`：保留记录（正常保留 + too_short）的**原始行**，按
+  清理顺序写出；`id`/`quality`/`text` 与附带字段逐字节保留；
+* `dispositions.jsonl`：逐篇处置表，按清理顺序，每行一个对象：
+  * 公共字段：`seq`（清理序号）、`id`、`disposition`
+    （`kept`/`too_short`/`redundant`）、`shingle_count`；
+  * `kept`：`candidates`（前缀命中去重后的候选对数）、
+    `examined`（长度过滤后精确比较对数）、
+    `best_below_threshold`（候选中相似度最高者的 id 与 i/u，无候
+    选时为 null）——未列为候选的在先保留项经前缀+长度过滤证明
+    不可能达到阈值；
+  * `redundant`：`witness_id`、`witness_shingle_count`、
+    `intersection`、`union`、`similarity`（精确比值 `i/u`）；
+  * `too_short`：`token_count`；
+* `summary.json`：`threshold`、`documents`、`kept`、`too_short`、
+  `redundant`、`candidate_pairs`（前缀命中去重后的候选对数）、
+  `exact_comparisons`（真正执行精确交集的对数）、
+  `pairwise_total`（全体配对规模 N(N-1)/2）、`distinct_shingles`
+  等计数。重排输入行后，保留清单、见证与上述计数完全一致。
+
+### 12.7 临时文件的去留
+
+工作库（语料原文、片段集合、频次/位次表、前缀倒排、候选表）默认
+建在系统临时目录（`tempfile.mkdtemp`，前缀 `vcfpipe_dedup_`），
+作业结束无论成败即删除；`--keep-work` 可保留用于排查（路径打印
+到 stderr）。工作库是纯派生状态，删除不影响任何输出。
+
+### 12.8 手写小语料演练
+
+`data/corpus/demo_small.jsonl` 21 篇（阈值 1/2）覆盖：非传递三篇
+链、阈值恰好相等（2/4）与刚低于（1/3）、全角与大小写、标点分词、
+重复片段只算一个、同质量 id 决胜、一个冗余同时命中两个保留项的
+同分决胜（取清理顺序最早者）、高频模板、短文本（含两篇空文不互
+删）、互不交叉词表。`tools/run_dedup_demo.py` 先逐篇打印 token 与
+三词片段、手工推导的预期处置表，再实际运行并读回原文与证据逐项
+核对，最后演示重复 id 与非法阈值被拒绝且不产出结果：
+
+```bash
+python3 -I tools/run_dedup_demo.py
+```
+
+### 12.9 独立慢速核对
+
+`tools/dedup_independent_check.py` **不导入** `vcfpipe.dedup` 的
+分词、候选检索与交集函数：按规格重写分词，对每篇**扫描全部在先
+保留项**（无任何过滤）做贪心清理。自检模式对 6 个有理阈值
+（1/2、1/3、2/3、3/5、2/5、1/1）分别合成含“恰好等于/刚低于/刚
+高于”边界对的语料，叠加非传递链、高频模板、全角/大小写、重复
+token、短文本等情形，每个语料再做多种打乱行序，逐张处置表（含
+见证、交并集、相似度）、kept.jsonl 原始行与 summary 计数全面比
+对——专门检查前缀与长度过滤没有漏掉边界对：
+
+```bash
+python3 -I tools/dedup_independent_check.py            # 自检
+python3 -I tools/dedup_independent_check.py \           # 单点核对
+  --corpus data/corpus/demo_small.jsonl \
+  --out-dir output/dedup_demo --threshold 1/2
+```
+
+### 12.10 规模演示（三万篇）
+
+`benchmarks/run_dedup_benchmark.py` 生成 30,300 篇确定性合成语料
+（28,000 篇私有词表稀疏文档 + 300 个近重复簇×5 + 200 篇模板同文
+变体 + 300 篇“高频模板但未达阈值”家族 + 200 篇滑动窗口 + 100
+篇短文本），用真实命令处理并报告墙钟、子进程峰值内存、候选对数
+与精确比较数，对照全体配对规模：
+
+```bash
+python3 benchmarks/run_dedup_benchmark.py
+```
+
+参考行为（本机一次运行）：约 9 秒、峰值内存约 165 MB；候选对数
+46,545（模板家族两两互为候选贡献 44,850 对，与解析预期一致），
+仅为全体配对 459,029,850 的约 0.01%——稀疏部分确实经过索引过
+滤，而非把全配对工作藏在另一个阶段。该数字只证明这份输入上的行
+为；小语料的完整正确性由 `tests/test_dedup.py`（35 个手算/集成
+回归）与上面的独立核对器负责。

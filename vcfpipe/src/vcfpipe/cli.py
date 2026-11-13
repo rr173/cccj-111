@@ -32,6 +32,8 @@ from .demux import (
 )
 from .pipeline import VersionConflict, run_pipeline
 from .query import Dataset
+from .replan import ConfirmRejected, ReplanError
+from .replan import dispatch as replan_dispatch
 from .trio import TrioConfigError, TrioRecordError, run_trio
 
 
@@ -122,6 +124,55 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--out-dir", required=True,
                    help="输出目录（必须不存在或为空；staging 成功后原子发布）")
 
+    rp = sub.add_parser(
+        "replan", help="分区重算规划：登记来源内容指纹、回答目标分区还需算"
+                       "什么/能开工什么/缺哪份数据、确认外部计算的完成回执"
+                       "（不启动作业）")
+    rp_sub = rp.add_subparsers(dest="replan_cmd", required=True)
+
+    rl = rp_sub.add_parser("load", help="装载并整体校验任务依赖 JSON")
+    rl.add_argument("--config", required=True, help="任务依赖 JSON 文件")
+
+    rr = rp_sub.add_parser("register",
+                           help="登记 source 分区的内容 SHA256（相同摘要"
+                                "不制造新版本）")
+    rr.add_argument("--config", required=True)
+    rr.add_argument("--ledger", required=True, help="账本 SQLite 文件")
+    rr.add_argument("--node", required=True, help="source 节点名")
+    rr.add_argument("--partition", required=True,
+                    help="分区标识（day: YYYY-MM-DD；month: YYYY-MM）")
+    rr.add_argument("--sha256", required=True, help="64 位十六进制内容摘要")
+
+    rt = rp_sub.add_parser("retract",
+                           help="撤回 source 分区（表示缺数据，绝不等价于"
+                                "一份空表）")
+    rt.add_argument("--config", required=True)
+    rt.add_argument("--ledger", required=True)
+    rt.add_argument("--node", required=True, help="source 节点名")
+    rt.add_argument("--partition", required=True, help="分区标识")
+
+    rpl = rp_sub.add_parser("plan",
+                            help="规划：沿声明展开目标闭包，给出还需算什么/"
+                                 "能开工什么/缺哪份数据，并为可开工项产出"
+                                 "输入票据（只读账本）")
+    rpl.add_argument("--config", required=True)
+    rpl.add_argument("--ledger", required=True)
+    rpl.add_argument("--target", action="append", required=True,
+                     metavar="节点:分区标识",
+                     help="规划目标，可多次给出；同一分区被多个目标需要时"
+                          "合并展示")
+    rpl.add_argument("--tickets-dir",
+                     help="可选：把每个 ready 项的输入票据写成 JSON 文件")
+
+    rc = rp_sub.add_parser("confirm",
+                           help="完成确认：凭票据与新输出摘要在一次事务内"
+                                "重验规则与全部直接输入，相符才替换回执")
+    rc.add_argument("--config", required=True)
+    rc.add_argument("--ledger", required=True)
+    rc.add_argument("--ticket", required=True, help="plan 产出的票据 JSON")
+    rc.add_argument("--output-sha256", required=True,
+                    help="外部计算产出的 64 位十六进制摘要")
+
     args = parser.parse_args(argv)
 
     if args.cmd == "run":
@@ -188,6 +239,20 @@ def main(argv: list[str] | None = None) -> int:
         except TrioRecordError as exc:
             parser.exit(1, f"家系筛查记录错误: {exc}\n")
         print(json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True))
+        return 0
+
+    if args.cmd == "replan":
+        try:
+            result = replan_dispatch(args)
+        except ConfirmRejected as exc:
+            print(json.dumps({"rejected": True, "message": str(exc),
+                              **exc.detail},
+                             indent=2, ensure_ascii=False, sort_keys=True))
+            parser.exit(exc.exit_code, f"完成确认被拒绝: {exc}\n")
+        except ReplanError as exc:
+            parser.exit(exc.exit_code, f"重算规划错误: {exc}\n")
+        print(json.dumps(result, indent=2, ensure_ascii=False,
+                         sort_keys=True))
         return 0
 
     ds = Dataset(args.dataset)

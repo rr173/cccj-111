@@ -25,6 +25,7 @@ vcfpipe/
 │   ├── demux.py       测序数据接收：FASTQ 校验、按条码拆分、UMI 提取
 │   ├── trio.py        家系三人组遗传一致性筛查（补全枚举，流式）
 │   ├── annot.py       转录本编码后果注释（剪接、坐标、密码子后果）
+│   ├── replan.py      分区重算规划：内容指纹账本、依赖闭包规划、完成确认
 │   └── cli.py         命令行入口
 ├── data/
 │   ├── ref/           合成参考 syn37/syn38、annot_syn（注释演示用）
@@ -40,7 +41,10 @@ vcfpipe/
 │   │                              传递函数，逐行复核明细）
 │   ├── annot_independent_check.py 独立拼接整条突变 CDS 再翻译的核对器
 │   ├── annot_make_notes.py        生成“核对笔记”（外显子→CDS→翻译）
-│   └── run_annot_demo.py          运行注释演示并保存失败路径回归
+│   ├── run_annot_demo.py          运行注释演示并保存失败路径回归
+│   ├── run_replan_demo.py         分区重算规划的合成账本操作稿（逐步演示）
+│   └── replan_independent_check.py 重算规划的独立朴素核对器（不导入产品
+│                                   规划函数，朴素展开 + 回执比较）
 ├── benchmarks/        run_benchmark.py：十万对级生成输入的规模/内存演示
 ├── tests/             手算单元测试 + 端到端集成测试（含独立解析器）
 ├── run_pipeline.py    本地 runner（-I 隔离模式下定位 src 包）
@@ -724,6 +728,16 @@ CRC 损坏/尾部垃圾的精确记录序号、多 member 读回）、双端错�
 码（0/1/2）子进程回归；另由 `tools/trio_exhaustive_check.py` 做不导入
 产品补全/传递函数的独立穷举逐行核对。
 
+分区重算规划另有 44 个回归（`tests/test_replan.py`）：任务依赖 JSON
+全部非法情形（环/未知引用/映射与粒度不符/lo-hi 规则/未知字段）、分区
+标识与依赖展开（闰年 29 天、跨月窗口、跨依赖去重、日期超界）、账本
+（幂等登记、撤回、重开持久、规划只读不写）、状态机与内容传播（相同
+摘要恢复 current、不同摘要进入 ready、撤回补回、无关支线精确失效）、
+完成确认（改源/改 recipe/上游失效/篡改票据均拒收且旧回执不变）、CLI
+退出码（0/1/2）子进程回归，以及 `tools/replan_independent_check.py`
+（不调用产品规划函数的独立朴素展开 + 回执比较）对小账本的一致性核对
+与篡改检出。合成账本操作稿见 `tools/run_replan_demo.py`（第 11.7 节）。
+
 ## 10. 家系三人组遗传一致性筛查（trio）
 
 `trio` 子命令读取**联合分型的多样本 VCF**（普通或 gzip，按魔数识别，
@@ -872,4 +886,190 @@ python3 -I tools/trio_exhaustive_check.py \
 内存只与家庭数有关，不随位点数增长。5 万个位点的合成 VCF 实测约
 3.1 秒、峰值 RSS 约 11 MB（机器相关），明细 50,000 行、摘要合计与
 明细逐格一致。
+
+## 11. 分区重算规划（replan）：还需算什么、能开工什么、缺哪份数据
+
+实验室每天接入一批数据：清洗表按天生成，周滚动表要读前几天，月表又要
+等整月的清洗分区。补交一天数据后，靠记忆决定重跑哪些任务，经常漏掉
+窗口末端，或把整条管道全部重跑。`replan` 子命令把任务依赖登记成可装
+载的 JSON，用一本只存**内容指纹**的 SQLite 账本登记来源内容与外部计
+算的完成回执，回答三个问题：指定目标分区**还需算什么**、**眼下能开
+工什么**、**缺哪份数据**。实际清洗/分析程序由外部执行——本功能**不
+启动作业**，也不推断测序结果。仅依赖 Python 3.11 标准库，已有
+`run`/`query`/`demux`/`assoc`/`annot`/`trio` 命令不受影响。
+
+### 11.1 依赖图（演示配置，两条支线共用 clean）
+
+```
+                identity                day_window lo=-2,hi=0
+raw[日] ───────────────────> clean[日] ────────────────────────> rolling[日]
+(source)                      │                                输出 d 读
+                              │                                clean[d-2..d]
+                              │ month_days
+                              v
+                            monthly[月]    输出 YYYY-MM 读当月全部 clean 日分区
+
+无关支线：qc[日] ──identity──> raw[日]（没有任何节点依赖 qc）
+```
+
+### 11.2 任务依赖 JSON（`replan load` 校验）
+
+```json
+{
+  "nodes": [
+    {"name": "raw", "type": "source", "granularity": "day"},
+    {"name": "clean", "type": "derived", "granularity": "day",
+     "recipe": "clean.py --day {partition}",
+     "dependencies": [{"node": "raw", "map": "identity"}]},
+    {"name": "rolling", "type": "derived", "granularity": "day",
+     "recipe": "rolling.py --day {partition} --window 3",
+     "dependencies": [{"node": "clean", "map": "day_window",
+                       "lo": -2, "hi": 0}]},
+    {"name": "monthly", "type": "derived", "granularity": "month",
+     "recipe": "monthly.py --month {partition}",
+     "dependencies": [{"node": "clean", "map": "month_days"}]}
+  ]
+}
+```
+
+* 每个节点有唯一 `name`、`type`（`source`/`derived`）与 `granularity`
+  （`day`/`month`）。分区标识严格为 `YYYY-MM-DD` 或 `YYYY-MM`，按公历
+  计算（`2024-02-29` 合法、`2023-02-29` 非法）。
+* `source` 节点不带 `recipe` 或 `dependencies`；`derived` 节点必须有
+  用户维护的非空 `recipe` 字符串和至少一项依赖。
+* 依赖映射只有三种：`identity`（两端粒度相同）；`day_window`（两端都
+  是 day，整数 `lo<=hi<=0`，取输出日期加 lo 到加 hi 的全部日分区，两
+  端包含）；`month_days`（输出 month、输入 day，取该月每一天——闰年
+  2 月 29 天，普通年 28 天）。
+* 展开后相同输入分区只计一次；节点次序、依赖次序不影响含义。
+* 引用未定义节点、节点成环（报错给出环链）、映射与粒度不符、非法日
+  期、日期运算超界（如 `0001-01-01` 再往前取窗口）都会解释清楚并以
+  退出码 2 拒绝。
+
+### 11.3 账本：只管理内容指纹
+
+账本是一个 SQLite 文件（`--ledger`），不搬运数据文件：
+
+* `register` 为 source 的某个分区登记 64 位十六进制 SHA256；`retract`
+  明确撤回该分区。摘要相同表示内容相同，不按登记次数制造新版本（重
+  复登记幂等）；撤回表示缺数据，**绝不**等价成一份空表。
+* `confirm` 为 derived 保存最近一次成功计算的回执：输出摘要、当时的
+  recipe/依赖定义、实际读到的每一个直接输入分区和摘要。
+* 账本退出重开后仍可继续使用；允许装载修改过的配置——回执逐节点记
+  录自己的规则，**无关节点的配置调整不会让全库过期**。
+
+### 11.4 状态定义
+
+| 状态 | 含义 |
+|---|---|
+| `present` / `missing` | source 分区已登记 / 未登记或已撤回 |
+| `current` | 回执存在、本节点规则未变、直接输入全部有效且摘要与成功回执逐项相等 |
+| `ready` | 无回执或回执过期，但直接输入已经全部 current——眼下可开工 |
+| `waiting` | 还得等待上游派生分区重算（原因列出具体上游分区及其状态） |
+| `blocked` | 沿任何依赖最终缺失了 source 分区（缺失链点名那一天） |
+
+每项状态都给出具体差异或缺失链（哪条规则变了、哪个输入的摘要从什么
+变成什么、缺失链逐节点到哪一天），不只写“上游变化”。
+
+### 11.5 命令与完整操作步骤
+
+```bash
+# 0) 安装：无需第三方包，干净 Python 3.11 克隆仓库即可；
+#    在项目根目录用 run_pipeline.py 调用（-I 隔离模式下自行定位 src 包）。
+
+# 1) 装载并校验任务依赖
+python3 -I run_pipeline.py replan load --config pipeline.json
+
+# 2) 数据到达/补交：登记来源分区摘要（撤回用 replan retract）
+python3 -I run_pipeline.py replan register --config pipeline.json \
+  --ledger ledger.db --node raw --partition 2024-02-28 \
+  --sha256 <64位十六进制>
+
+# 3) 规划：目标格式为 节点:分区标识，可多次 --target
+python3 -I run_pipeline.py replan plan --config pipeline.json \
+  --ledger ledger.db --target rolling:2024-02-28 --target monthly:2024-02 \
+  --tickets-dir tickets/
+
+# 4) 把 ready 项的票据交给外部计算者；算完后拿票据和新输出摘要确认
+python3 -I run_pipeline.py replan confirm --config pipeline.json \
+  --ledger ledger.db --ticket tickets/ticket_clean_2024-02-28.json \
+  --output-sha256 <64位十六进制>
+
+# 5) 重复 3–4 直到 ready 列表为空
+```
+
+`plan` 沿声明递归展开目标真正需要的输入，结果**只覆盖这个闭包**；同
+一分区被多个目标需要时合并展示，`ready` 按节点名、分区标识排序。规
+划以只读方式打开账本，**不会把任何任务标成已算**。
+
+`plan` 输出字段：`targets`（解析后的目标）、`summary`（各状态计数）、
+`ready`（可开工的 `节点:分区` 列表）、`items`（闭包内每个分区的
+`node/partition/kind/status`，source 带 `sha256`，current 带
+`output_sha256`，其余带 `reason` 具体差异/缺失链；ready 项另带
+`ticket` 与 `ticket_path`）。
+
+**票据文件**（`ticket_<节点>_<分区>.json`，也可从 plan 输出的
+`ticket` 字段取得）：
+
+| 字段 | 含义 |
+|---|---|
+| `ticket_version` | 票据格式版本 |
+| `node` / `partition` | 要计算的派生分区 |
+| `rule` | 本节点规则：recipe、粒度、依赖定义（含输入端粒度） |
+| `inputs` | 按 (节点, 分区) 稳定顺序列出的直接输入指纹 `{node, partition, sha256}` |
+
+`confirm` 在**一次数据库事务**内重新检查票据对应的规则与所有直接输
+入：它们须仍然有效且与票据相符，才替换该分区回执。拿到票据以后源数
+据改了、上游失效了或本节点 recipe 改了，都拒收旧结果（退出码 1）、
+保留原回执，重新规划即可。确认不会只检查日期相同，也不会把确认时看
+到的新摘要写进一份实际用旧数据算出的回执；票据字段同样要过节点、粒
+度与依赖完整性检查。退出码：0 成功；1 确认被拒（状态已变化）；2 配
+置/用法错误（含非法日期、超界、账本缺失、票据结构非法）。
+
+### 11.6 传播以内容为准
+
+`raw[2024-02-28]` 更新使 `clean[2024-02-28]` 过期，月表这时转为
+waiting；若外部重新计算 clean 后交回的输出摘要仍与以前相同，月表的
+输入实际上没变，**直接重新成为 current，无须重跑**；若 clean 输出摘
+要不同，月表才进入 ready。检查下游不只看它记录的摘要仍能在数据库找
+到，还要求生产该摘要的上游回执如今有效。修改 clean 的 recipe 遵守同
+一套规则；只改另一条无依赖支线的 recipe 不影响它。
+
+### 11.7 合成账本操作稿
+
+`tools/run_replan_demo.py` 在临时目录驱动完整演示（每步打印规划结果
+并自检）：
+
+```bash
+python3 -I tools/run_replan_demo.py
+```
+
+逐步展示：全部算完后无任务待做；补交 2 月 28 日只影响窗口
+`[d-2,d]` 含该日的 rolling（02-28/02-29/03-01）与月表，不波及
+`rolling[2024-03-02]`；闰年 2 月展开 29 天、普通年 28 天；撤回月末
+一天后阻塞链点名 `raw[2024-02-29]`，补回同样内容后全链直接恢复；
+clean 重算交回相同摘要时下游恢复 current、不同摘要时下游进入
+ready；票据发出后改源或改 recipe，旧确认被拒绝且旧回执不变；只调整
+无关支线（qc 的 recipe）不引起重算；循环定义与不匹配粒度被实际拒
+绝；最后用独立核对器复核最终账本。
+
+### 11.8 独立核对与回归
+
+`tools/replan_independent_check.py` **不导入** `vcfpipe.replan` 的任
+何代码：只用标准库重新实现依赖展开与回执比较，直接读配置 JSON 与账
+本 SQLite 的行，对 `plan` 的输出逐条复核闭包、每个分区状态、ready
+列表与票据内容：
+
+```bash
+python3 -I tools/replan_independent_check.py \
+  --config pipeline.json --ledger ledger.db --plan plan.json
+```
+
+`tests/test_replan.py` 的 44 个回归覆盖：配置全部非法情形（环/未知
+引用/粒度不符/lo-hi 规则/未知字段）、分区标识与展开（闰年、跨月窗
+口、去重、超界）、账本（幂等登记、撤回、重开持久、规划只读）、状态
+机与内容传播（相同/不同摘要、撤回补回、精确失效）、确认（改源/改
+recipe/上游失效/篡改票据均拒收且旧回执不变）、CLI 退出码（0/1/2）
+子进程回归，以及独立核对器对产品规划结果的一致性与篡改检出。
+
 

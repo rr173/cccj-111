@@ -10,6 +10,7 @@ genotype    多等位 GT/AD 拆分与剂量映射
 normalize   最左对齐 + 最小表示
 pipeline    端到端编排、合并、分区与清单
 query       变异查询 / 样本切片 / source-to-output 追踪
+assoc       基因级携带者关联分析（Fisher 精确检验 + BH 校正）
 """
 
 __version__ = "1.0.0"

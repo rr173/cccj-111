@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 
+from .assoc import AssocInputError, run_assoc, to_jsonable, write_report_files
 from .pipeline import VersionConflict, run_pipeline
 from .query import Dataset
 
@@ -43,6 +44,20 @@ def main(argv: list[str] | None = None) -> int:
     q.add_argument("--line-no", type=int)
     q.add_argument("--reason")
 
+    a = sub.add_parser("assoc", help="基因级携带者关联分析"
+                                     "（只读已发布数据集，不重新规范化）")
+    a.add_argument("--dataset", required=True, help="已发布数据集目录")
+    a.add_argument("--labels", required=True,
+                   help="病例/对照标签表（TSV 表头: sample, group）")
+    a.add_argument("--genes", required=True,
+                   help="基因区间 BED（chrom/start/end/gene，零起点半开）")
+    a.add_argument("--callable", required=True, dest="callable_bed",
+                   help="每样本可判读区间 BED（chrom/start/end/sample）")
+    a.add_argument("--min-dp", required=True, type=int,
+                   help="有效调用所需的最小 DP（达到该值才有效）")
+    a.add_argument("--out-dir",
+                   help="可选：写出 assoc_report.json 与汇总/明细 TSV")
+
     args = parser.parse_args(argv)
 
     if args.cmd == "run":
@@ -56,6 +71,17 @@ def main(argv: list[str] | None = None) -> int:
             "dataset_id": manifest["dataset_id"],
             "totals": manifest["totals"],
         }, indent=2, ensure_ascii=False))
+        return 0
+
+    if args.cmd == "assoc":
+        try:
+            report = run_assoc(args.dataset, args.labels, args.genes,
+                               args.callable_bed, args.min_dp)
+        except AssocInputError as exc:
+            parser.exit(2, f"关联分析输入错误: {exc}\n")
+        if args.out_dir:
+            write_report_files(report, args.out_dir)
+        print(json.dumps(to_jsonable(report), indent=2, ensure_ascii=False))
         return 0
 
     ds = Dataset(args.dataset)

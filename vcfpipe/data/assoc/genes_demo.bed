@@ -1,0 +1,16 @@
+# 基因区间（零起点、右端不包含的 BED 语义）：chrom<TAB>start<TAB>end<TAB>gene
+# 位点参考占用区间 = [pos-1, pos-1+len(ref))：
+#   pos28 插入 G>GA 占 [27,28)，pos28 删失 GA>G 占 [27,29)。
+# GENE_B [12,28)：含插入（[27,28) 相交），也含跨右边界的删失（[27,29) 相交）；
+# GENE_E [28,31)：插入恰止于左边界 28 不相交，删失跨左边界 -> 归入 GENE_E。
+# 删失因此同时属于 GENE_B 与 GENE_E（一个位点可属多个基因）；
+# pos13 同时属于 GENE_B 与 GENE_G。GENE_G 两行重叠区间 -> 并集 [4,14)，
+# 同一候选位点不重复计数；GENE_F 在 chr2 上，数据集中没有候选位点。
+chr1	0	12	GENE_A
+chr1	12	28	GENE_B
+chr1	44	49	GENE_C
+chr1	60	65	GENE_D
+chr1	28	31	GENE_E
+chr2	0	50	GENE_F
+chr1	4	10	GENE_G
+chr1	8	14	GENE_G

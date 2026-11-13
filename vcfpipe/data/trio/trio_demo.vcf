@@ -1,0 +1,16 @@
+##fileformat=VCFv4.2
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	FA	MO	CH1	CH2	GF	GM
+chr1	100	.	A	G	.	.	.	GT:DP	0/0:30	0/1:30	0/1:30	0/0:30	0/0:30	0/0:30
+chr1	110	.	C	T	.	.	.	GT:DP	0/0:30	0/0:30	0/1:30	0/0:30	0/0:30	0/0:30
+chr1	120	.	A	G,T	.	.	.	GT:DP	1/1:30	2/2:30	1/2:30	1/1:30	0/0:30	0/0:30
+chr1	130	.	G	A	.	.	.	GT:DP	0/.:30	0/0:30	1/1:30	0/1:30	0/0:30	0/0:30
+chr1	140	.	T	C	.	.	.	GT:DP	0/1:30	0/1:30	0/.:30	0/0:30	0/0:30	0/0:30
+chr1	150	.	C	A,T	.	.	.	GT:DP	./2:30	0/0:30	1/1:30	0/0:30	0/0:30	0/0:30
+chr1	160	.	G	A	.	.	.	GT:DP	1/1:5	0/0:30	1/1:30	0/0:30	0/0:30	0/0:30
+chr1	170	.	A	G	.	.	.	GT:DP	1/1:30	0/0:30	1/1:30	0/0:30	0/0:30	0/0:30
+chr1	180	.	T	G	.	.	.	GT:DP	1:30	0/0:30	0/1:30	0/0:30	0/0:30	0/0:30
+chr1	190	.	C	G	.	.	.	GT:DP	0|1:30	0/1:30	1|0:30	0/0:30	0/0:30	0/0:30
+chrX	200	.	A	G	.	.	.	GT:DP	0/1:30	0/1:30	0/1:30	0/0:30	0/0:30	0/0:30
+chr2	300	.	G	A	.	.	.	GT:DP	0/0:30	0/1:30	0/1:30	0/0:30	0/0:30	0/0:30

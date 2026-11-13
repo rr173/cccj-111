@@ -25,6 +25,7 @@ from .demux import (
 )
 from .pipeline import VersionConflict, run_pipeline
 from .query import Dataset
+from .trio import TrioConfigError, TrioRecordError, run_trio
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -85,6 +86,22 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--out-dir",
                    help="可选：写出 assoc_report.json 与汇总/明细 TSV")
 
+    t = sub.add_parser(
+        "trio", help="家系三人组遗传一致性筛查（多样本 VCF 逐位点补全"
+                     "枚举；只读不改写基因型，不做亲缘/临床结论）")
+    t.add_argument("--vcf", required=True,
+                   help="联合分型的多样本 VCF（普通或 gzip，按内容识别）")
+    t.add_argument("--families", required=True,
+                   help="家系表 TSV，表头恰为 family/child/father/mother")
+    t.add_argument("--chroms", required=True,
+                   help="常染色体名称白名单，逗号分隔；白名单外的行只"
+                        "计跳过数（不把性染色体套二倍体规则）")
+    t.add_argument("--min-dp", required=True, type=int,
+                   help="每人每位点可信调用所需的最小 DP（正整数）；"
+                        "DP 缺失或低于该值时整调用视为未知")
+    t.add_argument("--out-dir", required=True,
+                   help="输出目录（必须不存在或为空；staging 成功后原子发布）")
+
     args = parser.parse_args(argv)
 
     if args.cmd == "run":
@@ -127,6 +144,18 @@ def main(argv: list[str] | None = None) -> int:
         if args.out_dir:
             write_report_files(report, args.out_dir)
         print(json.dumps(to_jsonable(report), indent=2, ensure_ascii=False))
+        return 0
+
+    if args.cmd == "trio":
+        chroms = tuple(c.strip() for c in args.chroms.split(",") if c.strip())
+        try:
+            report = run_trio(
+                args.vcf, args.families, chroms, args.min_dp, args.out_dir)
+        except TrioConfigError as exc:
+            parser.exit(2, f"家系筛查配置错误: {exc}\n")
+        except TrioRecordError as exc:
+            parser.exit(1, f"家系筛查记录错误: {exc}\n")
+        print(json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True))
         return 0
 
     ds = Dataset(args.dataset)

@@ -1,0 +1,13 @@
+##fileformat=VCFv4.2
+##ASSEMBLY=<Value=syn38>
+##SAMPLE=<ID=S3>
+##CALLER=<Name=freebayes>
+##FILE_SUMMARY=<Value="batch B3 freebayes calls for S3 on syn38; chrZ absent on target">
+##contig=<ID=chr1,length=106>
+##contig=<ID=chrZ,length=20>
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	S3
+chrZ	5	.	A	G	21.7	PASS	.	GT:AD:DP	0/1:7,6:13
+chr1	5	.	A	G	33.9	PASS	.	GT:AD:DP	0/1:14,9:23

@@ -1,0 +1,89 @@
+{
+  "boundary_policy": "quarantine",
+  "caller_priority": [
+    "deepvar",
+    "freebayes",
+    "varscan"
+  ],
+  "contig_dict": {
+    "file_sha256": "0bc560e50d44fe3b053100394779927a85c9da88b8a3dab0414fb1d8fa0518cc",
+    "path": "data/ref/contigs.json"
+  },
+  "dataset_id": "syn37_v1",
+  "outputs": {
+    "evidence.tsv": "7f7fadb05f71ce4a1d0dcc99d3dd8f68a34f29e3aad04505b877b1012df9ad68",
+    "lineage.tsv": "e7623ed867326a41ee2901f2267ff190872ff2c6b0b27627e1d97bf9639b62dd",
+    "matrix/genotypes_long.tsv": "28187d922cf28433a679f66c1208942ea92f4be7578e4e2ef6763681d947da73",
+    "matrix/sample_gt_matrix.tsv": "9f7dbcc2b9db1a20f5aa759f01c199cdb1a0254e66870d244b19a31537bfbc86",
+    "merged.vcf": "ab3ed9eb1af7dfca21980016b0881bf8d4d639059c94d16f481c5b5c3d096df2",
+    "quarantine.tsv": "cfa23d111b64d410e0e71828c98fb4b2e7884e6b324363dc7ef7275617256b7b",
+    "variants/_index.tsv": "70f8a3c4d2d85fb614ff5a30d01f9822a19aadfcda7e89ab9c24bb57592aa30a",
+    "variants/variants_chr1.tsv": "c8245210ee8ce630686ce944fd0f15a583d14a0803f602da61c159b20e6f4de5"
+  },
+  "reference": {
+    "contig_lengths": {
+      "chr1": 106,
+      "chr2": 104
+    },
+    "contig_md5": {
+      "chr1": "1ab08d79f6ab01f27d0eb60a5719f224",
+      "chr2": "dc6130d3e864c0c6364f86ff4ebcdab2"
+    },
+    "file_sha256": "1b99376c3ccc4c3dd361b5daf90deaade77e9ec4401a8c7e621559063f20aeaf",
+    "path": "data/ref/syn37.fa"
+  },
+  "rule_version": "v1",
+  "sample_sheet": {
+    "file_sha256": "7718da5898602de542e70bad0bd9c47a13c7dda8a9b5f962fc8565cafc21451d",
+    "path": "data/input/sample_sheet.csv"
+  },
+  "schema_version": "1.0",
+  "sources": [
+    {
+      "assembly": "syn37",
+      "caller": "deepvar",
+      "file_sha256": "1e76e843217cfadc484e156c97573c3b34b54e8090374e4fd7d183e26f80565a",
+      "included": 10,
+      "path": "data/input/batch_b1_deepvar_s1.vcf",
+      "quarantined": 2,
+      "sample": "S1",
+      "summary": "batch B1 deepvar calls for S1 on syn37; 11 body records"
+    },
+    {
+      "assembly": "syn37",
+      "caller": "freebayes",
+      "file_sha256": "4c2b10ee101fe61e106c27ec99a9a91d0c2ab65df62b08ac9beb358b5be05f11",
+      "included": 3,
+      "path": "data/input/batch_b1_freebayes_s1.vcf",
+      "quarantined": 0,
+      "sample": "S1",
+      "summary": "batch B1 freebayes calls for S1; overlapping sites with deepvar"
+    },
+    {
+      "assembly": "syn37",
+      "caller": "varscan",
+      "file_sha256": "dd8e4f788e2a50355ada1a54ac99ec38dae9ac75f1befbf21442a2a7f2d0b94f",
+      "included": 4,
+      "path": "data/input/batch_b2_varscan_s2.vcf",
+      "quarantined": 2,
+      "sample": "S2",
+      "summary": "batch B2 varscan calls for S2; contig uses numeric alias 1"
+    },
+    {
+      "assembly": "syn38",
+      "caller": "freebayes",
+      "file_sha256": "9718765be471889bfa7fe594ce1776a9ffe1cd8cb432cc3dd3cdd301fd61ece9",
+      "included": 1,
+      "path": "data/input/batch_b3_freebayes_s3.vcf",
+      "quarantined": 1,
+      "sample": "S3",
+      "summary": "batch B3 freebayes calls for S3 on syn38; chrZ absent on target"
+    }
+  ],
+  "target_assembly": "syn37",
+  "totals": {
+    "included_records": 18,
+    "merged_variant_rows": 15,
+    "quarantined_records": 5
+  }
+}

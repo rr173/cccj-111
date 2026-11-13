@@ -1,0 +1,22 @@
+##fileformat=VCFv4.2
+##ASSEMBLY=<Value=syn37>
+##SAMPLE=<ID=S1>
+##CALLER=<Name=deepvar>
+##FILE_SUMMARY=<Value="batch B1 deepvar calls for S1 on syn37; 11 body records">
+##contig=<ID=chr1,length=106>
+##contig=<ID=chr2,length=104>
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	S1
+chr1	5	.	A	G	38.2	PASS	.	GT:AD:DP	0/1:12,8:20
+chr1	10	.	C	A,T	71.5	PASS	.	GT:AD:DP	1|2:30,5,4:39
+chr1	37	.	A	AA	64.0	PASS	.	GT:AD:DP	1/1:2,18:20
+chr1	37	.	AA	A	55.1	PASS	.	GT:AD:DP	0/1:10,9:19
+chr1	57	.	T	TT	41.0	PASS	.	GT:AD:DP	1/1:0,15:15
+chr1	46	.	CG	C	33.7	PASS	.	GT:AD:DP	0/1:7,6:13
+chr1	1	.	A	CA	29.4	PASS	.	GT:AD:DP	0/1:5,4:9
+chr1	9	.	T	C	12.1	LOWQUAL	.	GT:AD:DP	0/1:8,3:11
+chr1	13	.	A	T	18.9	PASS	.	GT:AD:DP	./.:.:.
+chr1	18	.	C	G	22.4	PASS	.	GT:AD:DP	./1:6,5:11
+chr1	63	.	A	T	9.8	PASS	.	GT:AD:DP	./.:.:7

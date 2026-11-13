@@ -1,0 +1,15 @@
+##fileformat=VCFv4.2
+##ASSEMBLY=<Value=syn37>
+##SAMPLE=<ID=S2>
+##CALLER=<Name=varscan>
+##FILE_SUMMARY=<Value="batch B2 varscan calls for S2; contig uses numeric alias 1">
+##contig=<ID=1,length=106>
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	S2
+1	5	.	A	G	27.6	PASS	.	GT:AD:DP	0/1:20,10:30
+1	63	.	A	T,C	51.3	PASS	.	GT:AD:DP	0/2:20,3,7:30
+1	70	.	T	<DEL>	.	.	.	GT:AD:DP	0/1:9,4:13
+1	15	.	G	A	36.8	PASS	.	GT:AD:DP	1|0:8,9:17
+1	75	.	A	C	19.2	PASS	.	GT:AD:DP	0/2:11,5:16

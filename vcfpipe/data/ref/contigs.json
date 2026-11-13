@@ -1,0 +1,15 @@
+{
+  "target_assembly": "syn37",
+  "aliases": {
+    "syn37": {
+      "chr1": "chr1",
+      "chr2": "chr2",
+      "1": "chr1",
+      "2": "chr2"
+    },
+    "syn38": {
+      "chr1": "chr1",
+      "chrZ": null
+    }
+  }
+}

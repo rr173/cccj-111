@@ -1,0 +1,25 @@
+##fileformat=VCFv4.2
+##ASSEMBLY=<Value=syn37>
+##INFO=<ID=WINNER,Number=1,Type=String,Description="Winning caller">
+##INFO=<ID=EVIDENCE,Number=.,Type=String,Description="Conflicting caller evidence: caller|rawGT|AD|DP">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">
+##source=<ID=deepvar,Digest=1e76e843217cfadc484e156c97573c3b34b54e8090374e4fd7d183e26f80565a,File=data/input/batch_b1_deepvar_s1.vcf>
+##source=<ID=freebayes,Digest=4c2b10ee101fe61e106c27ec99a9a91d0c2ab65df62b08ac9beb358b5be05f11,File=data/input/batch_b1_freebayes_s1.vcf>
+##source=<ID=freebayes,Digest=9718765be471889bfa7fe594ce1776a9ffe1cd8cb432cc3dd3cdd301fd61ece9,File=data/input/batch_b3_freebayes_s3.vcf>
+##source=<ID=varscan,Digest=dd8e4f788e2a50355ada1a54ac99ec38dae9ac75f1befbf21442a2a7f2d0b94f,File=data/input/batch_b2_varscan_s2.vcf>
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	S1	S2	S3
+chr1	1	.	A	CA	.	.	WINNER=deepvar;EVIDENCE=deepvar|0/1|5+4|9	GT:AD:DP	0/1:5,4:9	./.	./.
+chr1	5	.	A	G	.	.	WINNER=deepvar;EVIDENCE=deepvar|0/1|12+8|20,freebayes|1/1|4+16|20	GT:AD:DP	0/1:12,8:20	0/1:20,10:30	0/1:14,9:23
+chr1	10	.	C	A	.	.	WINNER=deepvar;EVIDENCE=deepvar|1|.|30+5|39	GT:AD:DP	1|.:30,5:39	./.	./.
+chr1	10	.	C	T	.	.	WINNER=deepvar;EVIDENCE=deepvar|.|1|30+4|39	GT:AD:DP	.|1:30,4:39	./.	./.
+chr1	13	.	A	T	.	.	WINNER=deepvar;EVIDENCE=deepvar|./.|.|.	GT:AD:DP	./.:.:.	./.	./.
+chr1	15	.	G	A	.	.	WINNER=varscan;EVIDENCE=varscan|1|0|8+9|17	GT:AD:DP	./.	1|0:8,9:17	./.
+chr1	18	.	C	G	.	.	WINNER=deepvar;EVIDENCE=deepvar|./1|6+5|11	GT:AD:DP	./1:6,5:11	./.	./.
+chr1	28	.	G	GA	.	.	WINNER=deepvar;EVIDENCE=deepvar|1/1|2+18|20,freebayes|1/1|3+17|20	GT:AD:DP	1/1:2,18:20	./.	./.
+chr1	28	.	GA	G	.	.	WINNER=deepvar;EVIDENCE=deepvar|0/1|10+9|19	GT:AD:DP	0/1:10,9:19	./.	./.
+chr1	46	.	CG	C	.	.	WINNER=deepvar;EVIDENCE=deepvar|0/1|7+6|13	GT:AD:DP	0/1:7,6:13	./.	./.
+chr1	48	.	C	CT	.	.	WINNER=deepvar;EVIDENCE=deepvar|1/1|0+15|15,freebayes|0/1|9+8|17	GT:AD:DP	1/1:0,15:15	./.	./.
+chr1	63	.	A	C	.	.	WINNER=varscan;EVIDENCE=varscan|0/1|20+7|30	GT:AD:DP	./.	0/1:20,7:30	./.
+chr1	63	.	A	T	.	.	WINNER=deepvar;EVIDENCE=deepvar|./.|.|7	GT:AD:DP	./.:.:7	0/.:20,3:30	./.

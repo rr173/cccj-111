@@ -1,0 +1,24 @@
+source_path	source_line	source_chrom	source_pos	source_ref	source_alt	output_chrom	output_pos	output_ref	output_alt	sample	status	reason
+data/input/batch_b1_deepvar_s1.vcf	12	chr1	5	A	G	chr1	5	A	G	S1	included	
+data/input/batch_b1_deepvar_s1.vcf	13	chr1	10	C	A	chr1	10	C	A	S1	included	
+data/input/batch_b1_deepvar_s1.vcf	13	chr1	10	C	T	chr1	10	C	T	S1	included	
+data/input/batch_b1_deepvar_s1.vcf	14	chr1	37	A	AA	chr1	28	G	GA	S1	included	
+data/input/batch_b1_deepvar_s1.vcf	15	chr1	37	AA	A	chr1	28	GA	G	S1	included	
+data/input/batch_b1_deepvar_s1.vcf	16	chr1	57	T	TT	chr1	48	C	CT	S1	included	
+data/input/batch_b1_deepvar_s1.vcf	17	chr1	46	CG	C	chr1	46	CG	C	S1	included	
+data/input/batch_b1_deepvar_s1.vcf	18	chr1	1	A	CA	chr1	1	A	CA	S1	included	
+data/input/batch_b1_deepvar_s1.vcf	19	chr1	9	T	C					S1	quarantined	ref_base_mismatch
+data/input/batch_b1_deepvar_s1.vcf	20	chr1	13	A	T	chr1	13	A	T	S1	included	
+data/input/batch_b1_deepvar_s1.vcf	21	chr1	18	C	G	chr1	18	C	G	S1	included	
+data/input/batch_b1_deepvar_s1.vcf	22	chr1	63	A	T	chr1	63	A	T	S1	included	
+data/input/batch_b1_freebayes_s1.vcf	11	chr1	5	A	G	chr1	5	A	G	S1	included	
+data/input/batch_b1_freebayes_s1.vcf	12	chr1	28	G	GA	chr1	28	G	GA	S1	included	
+data/input/batch_b1_freebayes_s1.vcf	13	chr1	50	T	TT	chr1	48	C	CT	S1	included	
+data/input/batch_b2_varscan_s2.vcf	11	1	5	A	G	chr1	5	A	G	S2	included	
+data/input/batch_b2_varscan_s2.vcf	12	1	63	A	C	chr1	63	A	C	S2	included	
+data/input/batch_b2_varscan_s2.vcf	12	1	63	A	T	chr1	63	A	T	S2	included	
+data/input/batch_b2_varscan_s2.vcf	13	1	70	T	<DEL>					S2	quarantined	symbolic_alt
+data/input/batch_b2_varscan_s2.vcf	14	1	15	G	A	chr1	15	G	A	S2	included	
+data/input/batch_b2_varscan_s2.vcf	15	1	75	A	C					S2	quarantined	malformed_gt
+data/input/batch_b3_freebayes_s3.vcf	12	chrZ	5	A	G					S3	quarantined	contig_unmapped
+data/input/batch_b3_freebayes_s3.vcf	13	chr1	5	A	G	chr1	5	A	G	S3	included	

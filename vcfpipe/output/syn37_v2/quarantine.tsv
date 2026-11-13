@@ -1,0 +1,5 @@
+source_path	source_digest	source_line	assembly	chrom	pos	ref	alts	raw_gt	reason_code	reason_detail
+data/input/batch_b1_deepvar_s1.vcf	1e76e843217cfadc484e156c97573c3b34b54e8090374e4fd7d183e26f80565a	19	syn37	chr1	9	T	C	0/1	ref_base_mismatch	REF=T 但参考为 A
+data/input/batch_b2_varscan_s2.vcf	dd8e4f788e2a50355ada1a54ac99ec38dae9ac75f1befbf21442a2a7f2d0b94f	13	syn37	1	70	T	<DEL>	0/1	symbolic_alt	不支持的符号/非碱基 ALT: <DEL>
+data/input/batch_b2_varscan_s2.vcf	dd8e4f788e2a50355ada1a54ac99ec38dae9ac75f1befbf21442a2a7f2d0b94f	15	syn37	1	75	A	C	0/2	malformed_gt	GT=0/2 含超出 ALT 数 1 的下标
+data/input/batch_b3_freebayes_s3.vcf	9718765be471889bfa7fe594ce1776a9ffe1cd8cb432cc3dd3cdd301fd61ece9	12	syn38	chrZ	5	A	G	0/1	contig_unmapped	contig syn38:chrZ 无法唯一映射到 syn37

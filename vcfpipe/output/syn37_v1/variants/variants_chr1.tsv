@@ -1,0 +1,16 @@
+assembly	chrom	pos	ref	alt	sample	winner_caller	gt	ad	dp	phased
+syn37	chr1	5	A	G	S1	deepvar	0/1	12,8	20	0
+syn37	chr1	5	A	G	S2	varscan	0/1	20,10	30	0
+syn37	chr1	5	A	G	S3	freebayes	0/1	14,9	23	0
+syn37	chr1	10	C	A	S1	deepvar	1|.	30,5	39	1
+syn37	chr1	10	C	T	S1	deepvar	.|1	30,4	39	1
+syn37	chr1	13	A	T	S1	deepvar	./.	.	.	0
+syn37	chr1	15	G	A	S2	varscan	1|0	8,9	17	1
+syn37	chr1	18	C	G	S1	deepvar	./1	6,5	11	0
+syn37	chr1	28	GA	G	S1	deepvar	0/1	10,9	19	0
+syn37	chr1	28	G	GA	S1	deepvar	1/1	2,18	20	0
+syn37	chr1	46	CG	C	S1	deepvar	0/1	7,6	13	0
+syn37	chr1	48	C	CT	S1	deepvar	1/1	0,15	15	0
+syn37	chr1	63	A	C	S2	varscan	0/1	20,7	30	0
+syn37	chr1	63	A	T	S1	deepvar	./.	.	7	0
+syn37	chr1	63	A	T	S2	varscan	0/.	20,3	30	0

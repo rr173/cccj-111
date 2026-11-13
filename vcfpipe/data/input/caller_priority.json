@@ -1,0 +1,3 @@
+{
+  "caller_priority": ["deepvar", "freebayes", "varscan"]
+}

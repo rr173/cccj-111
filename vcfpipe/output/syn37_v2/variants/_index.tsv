@@ -1,0 +1,2 @@
+chrom	path	min_pos	max_pos	record_count
+chr1	variants/variants_chr1.tsv	1	63	16

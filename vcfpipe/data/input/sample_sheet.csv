@@ -1,0 +1,5 @@
+sample_id,batch,vcf_path
+S1,B1,data/input/batch_b1_deepvar_s1.vcf
+S1,B1,data/input/batch_b1_freebayes_s1.vcf
+S2,B2,data/input/batch_b2_varscan_s2.vcf
+S3,B3,data/input/batch_b3_freebayes_s3.vcf

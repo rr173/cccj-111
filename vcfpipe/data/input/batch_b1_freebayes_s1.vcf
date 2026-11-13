@@ -1,0 +1,13 @@
+##fileformat=VCFv4.2
+##ASSEMBLY=<Value=syn37>
+##SAMPLE=<ID=S1>
+##CALLER=<Name=freebayes>
+##FILE_SUMMARY=<Value="batch B1 freebayes calls for S1; overlapping sites with deepvar">
+##contig=<ID=chr1,length=106>
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	S1
+chr1	5	.	A	G	44.0	PASS	.	GT:AD:DP	1/1:4,16:20
+chr1	28	.	G	GA	60.2	PASS	.	GT:AD:DP	1/1:3,17:20
+chr1	50	.	T	TT	30.5	PASS	.	GT:AD:DP	0/1:9,8:17

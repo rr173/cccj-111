@@ -12,6 +12,8 @@ pipeline    端到端编排、合并、分区与清单
 query       变异查询 / 样本切片 / source-to-output 追踪
 assoc       基因级携带者关联分析（Fisher 精确检验 + BH 校正）
 demux       测序数据接收：双端 FASTQ 校验、按条码拆分、UMI 提取
+trio        家系三人组遗传一致性筛查（补全枚举，流式）
+annot       转录本编码后果注释（剪接、坐标换算、密码子后果）
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"

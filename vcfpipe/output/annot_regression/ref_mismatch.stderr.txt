@@ -1,0 +1,2 @@
+exit_code=2
+注释输入错误: 变异表 /workspace/vcfpipe/data/annot/regression_ref_mismatch.tsv 第 2 行: REF 校验失败——chrP:30-30 参考序列为 'A'，输入 REF 为 'C'

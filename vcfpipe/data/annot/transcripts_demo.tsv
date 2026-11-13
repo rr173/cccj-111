@@ -1,0 +1,5 @@
+transcript	gene	chrom	strand	exon_starts	exon_ends	cds_start	cds_end
+TXP_POS1	GENEPOS	chrP	+	0,90,210	30,180,300	10	250
+TXP_POS1_UTR	GENEPOS	chrP	+	0,90,210	30,180,300	118	250
+TXP_NEG1	GENENEG	chrM	-	0,60	40,104	20	82
+TXP_NONCODING	GENENC	chrP	+	0,90,210	30,180,300	0	0

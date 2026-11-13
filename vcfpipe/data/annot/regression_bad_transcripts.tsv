@@ -1,0 +1,2 @@
+transcript	gene	chrom	strand	exon_starts	exon_ends	cds_start	cds_end
+TXP_BAD	GENEBAD	chrP	+	0,20	30,60	10	40

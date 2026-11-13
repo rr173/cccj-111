@@ -1,0 +1,65 @@
+{
+  "consequence_counts": {
+    "missense": 10,
+    "stop_gained": 4,
+    "stop_lost": 1,
+    "synonymous": 3
+  },
+  "explanations": 68,
+  "format": "tsv",
+  "inputs": {
+    "fasta": "/workspace/vcfpipe/data/ref/annot_syn.fa",
+    "fasta_sha256": "fbfdd04468d409c495a7117cd42e66c73c6caaa23fc50099ea41fc627df0cf76",
+    "transcripts": 4,
+    "variants": 22
+  },
+  "output": "annotation.tsv",
+  "region_counts": {
+    "boundary_unsupported": 7,
+    "coding": 18,
+    "intergenic": 1,
+    "intron": 4,
+    "noncoding_exon": 16,
+    "unsupported_edit": 6,
+    "utr": 16
+  },
+  "status": "success",
+  "transcripts": [
+    {
+      "cds_length": 150,
+      "chrom": "chrP",
+      "exons": 3,
+      "gene": "GENEPOS",
+      "noncoding": false,
+      "strand": "+",
+      "transcript": "TXP_POS1"
+    },
+    {
+      "cds_length": 102,
+      "chrom": "chrP",
+      "exons": 3,
+      "gene": "GENEPOS",
+      "noncoding": false,
+      "strand": "+",
+      "transcript": "TXP_POS1_UTR"
+    },
+    {
+      "cds_length": 42,
+      "chrom": "chrM",
+      "exons": 2,
+      "gene": "GENENEG",
+      "noncoding": false,
+      "strand": "-",
+      "transcript": "TXP_NEG1"
+    },
+    {
+      "cds_length": 0,
+      "chrom": "chrP",
+      "exons": 3,
+      "gene": "GENENC",
+      "noncoding": true,
+      "strand": "+",
+      "transcript": "TXP_NONCODING"
+    }
+  ]
+}

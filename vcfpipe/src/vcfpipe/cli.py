@@ -7,6 +7,12 @@ python -m vcfpipe.cli run \
     --samples data/input/sample_sheet.csv --priority data/input/caller_priority.json \
     --out-root output --rule-version v1
 
+python -m vcfpipe.cli annot \
+    --fasta data/ref/annot_syn.fa \
+    --transcripts data/annot/transcripts_demo.tsv \
+    --variants data/annot/variants_demo.tsv \
+    --out-dir output/annot_demo --format tsv
+
 python -m vcfpipe.cli demux \
     --r1 data/demux/R1.fastq.gz --r2 data/demux/R2.fastq.gz \
     --barcodes data/demux/barcodes.tsv --out-dir output/demux_demo \
@@ -18,6 +24,7 @@ import argparse
 import json
 import sys
 
+from .annot import AnnotInputError, run_annot
 from .assoc import AssocInputError, run_assoc, to_jsonable, write_report_files
 from .demux import (
     DemuxInputError, MAX_MAX_OPEN, MAX_UMI_LENGTH, MIN_MAX_OPEN,
@@ -86,6 +93,19 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--out-dir",
                    help="可选：写出 assoc_report.json 与汇总/明细 TSV")
 
+    an = sub.add_parser(
+        "annot",
+        help="转录本编码后果注释（本地合成材料；从变异走到氨基酸）")
+    an.add_argument("--fasta", required=True)
+    an.add_argument("--transcripts", required=True,
+                    help="转录本 TSV（8 列表头，见 docs/README.md）")
+    an.add_argument("--variants", required=True,
+                    help="变异 TSV（id/chrom/pos/ref/alt 五列表头）")
+    an.add_argument("--out-dir", required=True,
+                    help="输出目录（必须不存在或为空）")
+    an.add_argument("--format", default="tsv", choices=["tsv", "jsonl"],
+                    help="解释表格式：逐行 TSV（默认）或 JSONL")
+
     t = sub.add_parser(
         "trio", help="家系三人组遗传一致性筛查（多样本 VCF 逐位点补全"
                      "枚举；只读不改写基因型，不做亲缘/临床结论）")
@@ -115,6 +135,18 @@ def main(argv: list[str] | None = None) -> int:
             "dataset_id": manifest["dataset_id"],
             "totals": manifest["totals"],
         }, indent=2, ensure_ascii=False))
+        return 0
+
+    if args.cmd == "annot":
+        try:
+            summary = run_annot(args.fasta, args.transcripts, args.variants,
+                                args.out_dir, args.format)
+        except AnnotInputError as exc:
+            parser.exit(2, f"注释输入错误: {exc}\n")
+        except OSError as exc:
+            parser.exit(1, f"注释写出失败: {exc}\n")
+        print(json.dumps(summary, indent=2, ensure_ascii=False,
+                         sort_keys=True))
         return 0
 
     if args.cmd == "demux":

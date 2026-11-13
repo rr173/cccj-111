@@ -1,0 +1,2 @@
+exit_code=2
+注释输入错误: 转录本表 /workspace/vcfpipe/data/annot/regression_bad_transcripts.tsv 第 2 行: 外显子起点乱序或与前一外显子重叠（20 < 30；外显子须按坐标递增且互不重叠）

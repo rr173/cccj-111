@@ -1,0 +1,69 @@
+id	chrom	pos	ref	alt	alt_index	transcript	gene	strand	region	cds_position	codon_number	codon_pos_1	codon_pos_2	codon_pos_3	codon_ref	codon_alt	aa_ref	aa_alt	consequence	reason
+V_CROSS_POS	chrP	30	A	G	1	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_CROSS_POS	chrP	30	A	G	1	TXP_POS1	GENEPOS	+	coding	20	7	29	30	91	TAC	TGC	Y	C	missense	
+V_CROSS_POS	chrP	30	A	G	1	TXP_POS1_UTR	GENEPOS	+	utr											REF 完整落在该外显子的非编码片段（UTR），不翻译
+V_CROSS_POS	chrP	30	A	T	2	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_CROSS_POS	chrP	30	A	T	2	TXP_POS1	GENEPOS	+	coding	20	7	29	30	91	TAC	TTC	Y	F	missense	
+V_CROSS_POS	chrP	30	A	T	2	TXP_POS1_UTR	GENEPOS	+	utr											REF 完整落在该外显子的非编码片段（UTR），不翻译
+V_CROSS_POS	chrP	30	A	C	3	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_CROSS_POS	chrP	30	A	C	3	TXP_POS1	GENEPOS	+	coding	20	7	29	30	91	TAC	TCC	Y	S	missense	
+V_CROSS_POS	chrP	30	A	C	3	TXP_POS1_UTR	GENEPOS	+	utr											REF 完整落在该外显子的非编码片段（UTR），不翻译
+V_NEG_SEAM	chrM	40	C	T	1	TXP_NEG1	GENENEG	-	coding	23	8	61	40	39	TGC	TAC	C	Y	missense	
+V_STOP_LOST	chrP	116	T	C	1	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_STOP_LOST	chrP	116	T	C	1	TXP_POS1	GENEPOS	+	coding	46	16	116	117	118	TAA	CAA	*	Q	stop_lost	
+V_STOP_LOST	chrP	116	T	C	1	TXP_POS1_UTR	GENEPOS	+	utr											REF 完整落在编码区上游的非编码片段（UTR），不翻译
+V_STOP_GAINED	chrP	121	G	A	1	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_STOP_GAINED	chrP	121	G	A	1	TXP_POS1	GENEPOS	+	coding	51	17	119	120	121	TGG	TGA	W	*	stop_gained	
+V_STOP_GAINED	chrP	121	G	A	1	TXP_POS1_UTR	GENEPOS	+	coding	3	1	119	120	121	TGG	TGA	W	*	stop_gained	
+V_SYNONYMOUS	chrP	16	T	C	1	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_SYNONYMOUS	chrP	16	T	C	1	TXP_POS1	GENEPOS	+	coding	6	2	14	15	16	GCT	GCC	A	A	synonymous	
+V_SYNONYMOUS	chrP	16	T	C	1	TXP_POS1_UTR	GENEPOS	+	utr											REF 完整落在该外显子的非编码片段（UTR），不翻译
+V_DOUBLE_BASE	chrP	113	CGA	AGC	1	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_DOUBLE_BASE	chrP	113	CGA	AGC	1	TXP_POS1	GENEPOS	+	coding	43	15	113	114	115	CGA	AGC	R	S	missense	
+V_DOUBLE_BASE	chrP	113	CGA	AGC	1	TXP_POS1_UTR	GENEPOS	+	utr											REF 完整落在编码区上游的非编码片段（UTR），不翻译
+V_TWO_CODONS	chrP	112	ACG	TTA	1	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_TWO_CODONS	chrP	112	ACG	TTA	1	TXP_POS1	GENEPOS	+	coding	42	14	110	111	112	AGA	AGT	R	S	missense	
+V_TWO_CODONS	chrP	112	ACG	TTA	1	TXP_POS1	GENEPOS	+	coding	42	15	113	114	115	CGA	TAA	R	*	stop_gained	
+V_TWO_CODONS	chrP	112	ACG	TTA	1	TXP_POS1_UTR	GENEPOS	+	utr											REF 完整落在编码区上游的非编码片段（UTR），不翻译
+V_CODING_VS_NONCODING	chrP	95	T	A	1	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_CODING_VS_NONCODING	chrP	95	T	A	1	TXP_POS1	GENEPOS	+	coding	25	9	95	96	97	TGG	AGG	W	R	missense	
+V_CODING_VS_NONCODING	chrP	95	T	A	1	TXP_POS1_UTR	GENEPOS	+	utr											REF 完整落在编码区上游的非编码片段（UTR），不翻译
+V_UTR5	chrP	5	A	G	1	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_UTR5	chrP	5	A	G	1	TXP_POS1	GENEPOS	+	utr											REF 完整落在编码区上游的非编码片段（UTR），不翻译
+V_UTR5	chrP	5	A	G	1	TXP_POS1_UTR	GENEPOS	+	utr											REF 完整落在该外显子的非编码片段（UTR），不翻译
+V_UTR3	chrP	260	C	T	1	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_UTR3	chrP	260	C	T	1	TXP_POS1	GENEPOS	+	utr											REF 完整落在编码区下游的非编码片段（UTR），不翻译
+V_UTR3	chrP	260	C	T	1	TXP_POS1_UTR	GENEPOS	+	utr											REF 完整落在编码区下游的非编码片段（UTR），不翻译
+V_INTRON	chrP	50	A	C	1	TXP_NONCODING	GENENC	+	intron											REF 完整落在单一内含子内
+V_INTRON	chrP	50	A	C	1	TXP_POS1	GENEPOS	+	intron											REF 完整落在单一内含子内
+V_INTRON	chrP	50	A	C	1	TXP_POS1_UTR	GENEPOS	+	intron											REF 完整落在单一内含子内
+V_CDS_START	chrP	11	A	G	1	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_CDS_START	chrP	11	A	G	1	TXP_POS1	GENEPOS	+	coding	1	1	11	12	13	ATG	GTG	M	V	missense	
+V_CDS_START	chrP	11	A	G	1	TXP_POS1_UTR	GENEPOS	+	utr											REF 完整落在该外显子的非编码片段（UTR），不翻译
+V_CDS_END	chrP	250	G	A	1	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_CDS_END	chrP	250	G	A	1	TXP_POS1	GENEPOS	+	coding	150	50	248	249	250	TCG	TCA	S	S	synonymous	
+V_CDS_END	chrP	250	G	A	1	TXP_POS1_UTR	GENEPOS	+	coding	102	34	248	249	250	TCG	TCA	S	S	synonymous	
+V_EXON_END_CODING	chrP	180	T	C	1	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_EXON_END_CODING	chrP	180	T	C	1	TXP_POS1	GENEPOS	+	coding	110	37	179	180	211	GTA	GCA	V	A	missense	
+V_EXON_END_CODING	chrP	180	T	C	1	TXP_POS1_UTR	GENEPOS	+	coding	62	21	179	180	211	GTA	GCA	V	A	missense	
+V_BOUNDARY_EXON	chrP	30	AT	CG	1	TXP_NONCODING	GENENC	+	boundary_unsupported											REF 横跨外显子与内含子，或不在单一外显子/内含子内
+V_BOUNDARY_EXON	chrP	30	AT	CG	1	TXP_POS1	GENEPOS	+	boundary_unsupported											REF 横跨外显子与内含子，或不在单一外显子/内含子内
+V_BOUNDARY_EXON	chrP	30	AT	CG	1	TXP_POS1_UTR	GENEPOS	+	boundary_unsupported											REF 横跨外显子与内含子，或不在单一外显子/内含子内
+V_BOUNDARY_CODING	chrP	10	CA	GT	1	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_BOUNDARY_CODING	chrP	10	CA	GT	1	TXP_POS1	GENEPOS	+	boundary_unsupported											REF 横跨同一外显子的编码片段与非编码片段
+V_BOUNDARY_CODING	chrP	10	CA	GT	1	TXP_POS1_UTR	GENEPOS	+	utr											REF 完整落在该外显子的非编码片段（UTR），不翻译
+V_BOUNDARY_SPAN	chrP	300	CA	AA	1	TXP_NONCODING	GENENC	+	boundary_unsupported											REF 区间越出该转录本的外显子跨度
+V_BOUNDARY_SPAN	chrP	300	CA	AA	1	TXP_POS1	GENEPOS	+	boundary_unsupported											REF 区间越出该转录本的外显子跨度
+V_BOUNDARY_SPAN	chrP	300	CA	AA	1	TXP_POS1_UTR	GENEPOS	+	boundary_unsupported											REF 区间越出该转录本的外显子跨度
+V_INTERGENIC	chrP	310	C	A	1				intergenic											REF 区间不与任何异构体的外显子跨度相交
+V_UNSUPPORTED	chrP	95	T	TA	1	TXP_NONCODING	GENENC	+	unsupported_edit											REF 长度 1 与 ALT 长度 2 不等；只支持等长碱基替换
+V_UNSUPPORTED	chrP	95	T	TA	1	TXP_POS1	GENEPOS	+	unsupported_edit											REF 长度 1 与 ALT 长度 2 不等；只支持等长碱基替换
+V_UNSUPPORTED	chrP	95	T	TA	1	TXP_POS1_UTR	GENEPOS	+	unsupported_edit											REF 长度 1 与 ALT 长度 2 不等；只支持等长碱基替换
+V_ALT_MIXED	chrP	96	G	A	1	TXP_NONCODING	GENENC	+	noncoding_exon											该异构体 CDS 为空（cds_start == cds_end），外显子全部非编码
+V_ALT_MIXED	chrP	96	G	A	1	TXP_POS1	GENEPOS	+	coding	26	9	95	96	97	TGG	TAG	W	*	stop_gained	
+V_ALT_MIXED	chrP	96	G	A	1	TXP_POS1_UTR	GENEPOS	+	utr											REF 完整落在编码区上游的非编码片段（UTR），不翻译
+V_ALT_MIXED	chrP	96	G	GA	2	TXP_NONCODING	GENENC	+	unsupported_edit											REF 长度 1 与 ALT 长度 2 不等；只支持等长碱基替换
+V_ALT_MIXED	chrP	96	G	GA	2	TXP_POS1	GENEPOS	+	unsupported_edit											REF 长度 1 与 ALT 长度 2 不等；只支持等长碱基替换
+V_ALT_MIXED	chrP	96	G	GA	2	TXP_POS1_UTR	GENEPOS	+	unsupported_edit											REF 长度 1 与 ALT 长度 2 不等；只支持等长碱基替换
+V_NEG_INTRON	chrM	50	G	A	1	TXP_NEG1	GENENEG	-	intron											REF 完整落在单一内含子内
+V_NEG_UTR	chrM	90	T	G	1	TXP_NEG1	GENENEG	-	utr											REF 完整落在编码区下游的非编码片段（UTR），不翻译

@@ -3,7 +3,9 @@
 把来自不同实验批次、不同 caller、不同 assembly 的小型 VCF，整合为统一
 参考版本的**变异事实表**与**样本基因型矩阵**；上游带一个**测序数据接收
 环节**（`demux`）：校验双端 FASTQ、按条码把混合文库拆回各样本并提取
-UMI，拆出的每样本 read 对即可交给外部比对/变异调用。仅依赖
+UMI，拆出的每样本 read 对即可交给外部比对/变异调用。另有**转录本编码
+后果注释**（`annot`）：从变异表、转录本定义与 FASTA 出发，在本机给出
+每个转录本上改动到的密码子与氨基酸，不查询在线注释库。仅依赖
 Python 3.11 标准库。
 
 ## 1. 目录结构
@@ -22,17 +24,23 @@ vcfpipe/
 │   ├── assoc.py       基因级携带者关联分析（Fisher 精确检验 + BH 校正）
 │   ├── demux.py       测序数据接收：FASTQ 校验、按条码拆分、UMI 提取
 │   ├── trio.py        家系三人组遗传一致性筛查（补全枚举，流式）
+│   ├── annot.py       转录本编码后果注释（剪接、坐标、密码子后果）
 │   └── cli.py         命令行入口
 ├── data/
-│   ├── ref/           合成参考 syn37/syn38 与 contig 字典
+│   ├── ref/           合成参考 syn37/syn38、annot_syn（注释演示用）
 │   ├── input/         4 份合成 VCF、样本表、caller 优先级
 │   ├── assoc/         关联分析演示输入（标签表、基因/可判读区间 BED）
 │   ├── trio/          家系筛查演示：联合多样本 VCF + 四列家系表
+│   ├── annot/         注释演示：转录本表、变异表、失败路径输入与
+│   │                  确定性生成脚本 make_demo_inputs.py
 │   └── demux/         接收演示输入（合成序列）：10 对手算样例 +
 │                      alternating/ 去向交替样例 + 确定性生成脚本
 ├── tools/
-│   └── trio_exhaustive_check.py  独立小范围穷举核对器（不导入产品补全/
-│                                  传递函数，逐行复核明细）
+│   ├── trio_exhaustive_check.py  独立小范围穷举核对器（不导入产品补全/
+│   │                              传递函数，逐行复核明细）
+│   ├── annot_independent_check.py 独立拼接整条突变 CDS 再翻译的核对器
+│   ├── annot_make_notes.py        生成“核对笔记”（外显子→CDS→翻译）
+│   └── run_annot_demo.py          运行注释演示并保存失败路径回归
 ├── benchmarks/        run_benchmark.py：十万对级生成输入的规模/内存演示
 ├── tests/             手算单元测试 + 端到端集成测试（含独立解析器）
 ├── run_pipeline.py    本地 runner（-I 隔离模式下定位 src 包）
@@ -464,7 +472,216 @@ python3 -I benchmarks/run_benchmark.py --pairs 480000
 无关。输出守恒（各去向对数之和 == 输入对数）与最大去向文件的可
 完整读回由脚本自动断言。
 
-## 8. 测试
+## 8. 转录本编码后果注释（annot）：从变异走到氨基酸
+
+`annot` 子命令读取**变异表**、**转录本定义**与**参考 FASTA**，逐条给出
+“输入 id × ALT × 转录本”的解释：变异落在哪个区域；若在编码区，改动
+了哪个密码子、哪三个基因组碱基、替换前后的密码子与氨基酸，以及后果
+类别。全部材料是本地合成序列，**在本机计算**；不查询在线注释库，也
+不依赖第三方后果注释器。仅依赖 Python 3.11 标准库。
+
+跨接缝密码子、负链坐标、同一点在编码/非编码异构体中的不同后果，都
+以**整段 REF 区间**判定（只看 `pos` 锚点会把这些差别丢掉）。
+
+### 8.1 安装与运行
+
+与管线其余部分相同：无需第三方包，在干净 Python 3.11 环境中克隆仓库，
+于项目根目录执行：
+
+```bash
+python3 -I run_pipeline.py annot \
+  --fasta data/ref/annot_syn.fa \
+  --transcripts data/annot/transcripts_demo.tsv \
+  --variants data/annot/variants_demo.tsv \
+  --out-dir output/annot_demo --format tsv
+```
+
+* `--format tsv`（默认）或 `jsonl`；两种格式字段一一对应。
+* `--out-dir` 必须不存在或为空；解释表**逐条写出并 flush**，不会攒到
+  整批结束才落盘。`summary.json` 只在全部输入通过校验并成功写出后生成。
+* 缓存参考 FASTA / 转录本表是允许的；逐条产出不缓存。
+* 退出码：0 成功；2 输入结构/内容错误（消息带文件与行号）；1 输出
+  写出失败（I/O）。
+
+### 8.2 输入格式（字段固定）
+
+**转录本 TSV**，表头恰为八列：
+
+```
+transcript	 gene	 chrom	 strand	 exon_starts	 exon_ends	 cds_start	 cds_end
+```
+
+| 字段 | 取值规则 |
+|---|---|
+| `transcript` | 本表内唯一异构体名，非空 |
+| `gene` | 非空基因名 |
+| `chrom` | 必须在 FASTA 中存在 |
+| `strand` | `+` 或 `-` |
+| `exon_starts` / `exon_ends` | 逗号分隔整数，**按坐标递增**；成对形成零起点、右开的非空外显子 `[start,end)`；两列表长度相等；外显子互不重叠（相邻允许） |
+| `cds_start` / `cds_end` | 零起点半开；`cds_start == cds_end` 表示**非编码异构体**；非空时两端碱基（`cds_start` 与 `cds_end-1`）都必须在外显子上，且拼接总长整除 3（单片段不必整除） |
+
+**变异 TSV**，表头恰为五列：
+
+```
+id	 chrom	 pos	 ref	 alt
+```
+
+| 字段 | 取值规则 |
+|---|---|
+| `id` | 本表内唯一，非空 |
+| `chrom` | 必须在 FASTA 中存在 |
+| `pos` | 从 1 计数 |
+| `ref` / `alt` | 基因组**正链**字母，A/C/G/T（大小写归一为大写），至少 1 碱基 |
+| `alt` | 可含逗号分隔的多个选择；ALT 之间互异且均异于 REF |
+
+**FASTA**：支持折行，`>` 头行第一个空白字段为序列名；序列名不得重复；
+碱基限 A/C/G/T。
+
+### 8.3 校验与失败语义
+
+开始写输出**之前**整体校验；以下情形一律结束运行、返回非零，并指出
+来源文件与行号：
+
+* FASTA 序列名重复、contig 缺失、序列含非法碱基；
+* 转录本外显子乱序/重叠、两个 exon 列表长度不等、负坐标或空外显子、
+  非法 CDS（端点不在外显子、拼接长度不整除 3、`cds_start > cds_end`）、
+  contig 不存在、strand 非法、重复 transcript；
+* 变异 id 重复、`pos` 非正整数、非法碱基、ALT 与 REF 重复/相同、
+  contig 不存在、REF 区间越界；
+* **REF 校验失败**：输入 REF 与 FASTA 对应区段不相等，报出实际参考串。
+
+### 8.4 区域分类
+
+按“相交异构体”逐一判断：异构体外显子跨度 `[最小起点, 最大终点)` 与
+完整 REF 区间相交才纳入；同一 `chrom` 才可能相交（不同 contig 不混）。
+只看 `pos` 锚点会丢掉以下差别，本实现按**整段区间**判定：
+
+| 类别 | 条件 |
+|---|---|
+| `coding` | REF 完整落在同一外显子的编码片段（`[cds_start,cds_end)` 的交集）内 |
+| `utr` | REF 完整落在同一外显子的非编码片段内 |
+| `noncoding_exon` | 异构体本身非编码（`cds_start == cds_end`），REF 完整落在其外显子内 |
+| `intron` | REF 完整落在单一内含子内 |
+| `intergenic` | 没有任何相交异构体（`transcript` 为空） |
+| `boundary_unsupported` | REF 横跨外显子/内含子、编码/非编码，或越出转录本跨度 |
+| `unsupported_edit` | REF 与 ALT 长度不等；**优先**于其他分类，保留相交 transcript；找不到相交者 transcript 为空 |
+
+上述规则对整个 REF 区间生效，包括只碰到边缘最后一个碱基的情形。
+
+### 8.5 编码后果
+
+* 只支持**等长碱基替换**。把整段替换**一次性**施加到该转录本的 CDS，
+  再翻译触及的密码子。同一密码子改两处时，答案由两处共同决定，**不
+  能用两个单碱基注释拼成答案**（`CGA→AGC` 是两个碱基合改才得到的
+  错义，两个单改各自同义）。
+* 不同 ALT、不同输入记录、不同异构体**独立处理**；一条记录多个 ALT
+  时按 ALT 列表顺序各自展开；重叠异构体各自给出解释。
+* 一段替换触及两个密码子时**各给一项解释**。
+
+CDS 的重建：外显子在基因组正链给出，先取与编码范围相交的片段；**正链**
+按坐标递增拼接，**负链**按坐标递减拼接各片段的**反向互补**；整条拼好
+后**从头**分成三联体，阅读框贯穿接缝（例如两段分别贡献 2 和 4 个编码
+碱基时，首个密码子横跨两段，第二段不从新密码子开头算）。负链 ALT 反向
+互补后施加；输出的三个基因组坐标按**翻译方向**排列（负链为递减坐标）。
+
+后果类别用标准遗传密码表（NCBI table 1），`*` 表示终止：
+
+| 前后氨基酸 | 类别 |
+|---|---|
+| 未变（含 `*`→`*`） | `synonymous` |
+| 非终止 → `*` | `stop_gained` |
+| `*` → 非终止 | `stop_lost` |
+| 其余 | `missense` |
+
+不推测起始丢失、单倍型或致病性。
+
+### 8.6 输出与排序
+
+```
+<out-dir>/annotation.tsv      逐行解释（或 annotation.jsonl）
+<out-dir>/summary.json        区域/后果计数、输入摘要与 transcripts 列表
+```
+
+TSV 列固定为：
+
+```
+id chrom pos ref alt alt_index transcript gene strand region
+cds_position codon_number codon_pos_1 codon_pos_2 codon_pos_3
+codon_ref codon_alt aa_ref aa_alt consequence reason
+```
+
+* `alt_index` 从 1 起，对应该记录 ALT 列表序号；
+* `cds_position` 是**首个被改动碱基**在剪接 CDS 中的 1 起位置；
+  `codon_number` 从 1 起；`codon_pos_1..3` 是该密码子三个基因组坐标，
+  正链递增、负链递减（按翻译方向）；
+* `codon_ref` / `codon_alt` 是替换前后的密码子，`aa_ref` / `aa_alt` 为
+  对应氨基酸；
+* 非编码/暂不支持项同样占一行，密码子相关列留空，`reason` 说明原因；
+  `intergenic` 的 `transcript`/`gene`/`strand` 为空。
+
+排序键：**变异在输入表中的原顺序 → ALT 列表顺序 → transcript 字典序 →
+密码子编号**。JSONL 每行一个对象，字段与 TSV 列一一对应；空值写 `null`。
+
+### 8.7 演示与核对笔记
+
+```bash
+python3 -I data/annot/make_demo_inputs.py          # 生成合成材料（确定性）
+python3 -I tools/run_annot_demo.py                 # 运行演示 + 保存失败回归
+python3 -I tools/annot_make_notes.py               # 生成 output/annot_notes.md
+python3 -I tools/annot_independent_check.py \
+  --fasta data/ref/annot_syn.fa \
+  --transcripts data/annot/transcripts_demo.tsv \
+  --variants data/annot/variants_demo.tsv \
+  --out-dir output/annot_demo
+```
+
+`output/annot_notes.md` 是“核对笔记”：先摆出外显子片段、剪接后的 CDS
+与预期翻译，再运行入口并读回解释，覆盖：
+
+* 正链跨接缝密码子 7（`chrP:29/30/91`，`TAC`）；
+* 负链跨接缝密码子 8（`chrM:61/40/39`，坐标按翻译方向递减）；
+* 同位点在不同异构体中的不同后果（`chrP:95 T>A`：`TXP_POS1` 为
+  `coding`（`TGG→AGG`，W→R），同基因短 CDS 异构体 `TXP_POS1_UTR` 为
+  `utr`，全非编码异构体 `TXP_NONCODING` 为 `noncoding_exon`）；
+* 双碱基同时改才得到的氨基酸（`CGA→AGC`，R→S，两个单改各自同义）；
+* 一段替换跨两个密码子（`chrP:112 ACG>TTA` → 密码子 14 与 15）；
+* 终止获得（`TGG→TGA`）与丢失（`TAA→CAA`），以及同义（`GCT→GCC`，
+  含 `*`→`*` 也按规则记 synonymous）；
+* CDS 端点、外显子末端、跨内含子、无相交异构体、全非编码异构体。
+
+`tools/annot_independent_check.py` **完全不导入** `vcfpipe.annot` 的代码：
+自己解析 FASTA/TSV、自己拼整条突变 CDS、自己翻译，逐行逐字段比对产品
+输出。`output/annot_regression/` 保存两类失败回归的实际结果：
+
+```bash
+# REF 错配：退出码 2，报出参考序列与输入 REF
+$ python3 -I run_pipeline.py annot --fasta data/ref/annot_syn.fa \
+    --transcripts data/annot/transcripts_demo.tsv \
+    --variants data/annot/regression_ref_mismatch.tsv --out-dir /tmp/x
+注释输入错误: 变异表 .../regression_ref_mismatch.tsv 第 2 行: REF 校验失败——
+chrP:30-30 参考序列为 'A'，输入 REF 为 'C'
+
+# 错误转录本定义（外显子重叠）：退出码 2，报出外显子与行号
+$ python3 -I run_pipeline.py annot --fasta data/ref/annot_syn.fa \
+    --transcripts data/annot/regression_bad_transcripts.tsv \
+    --variants data/annot/variants_demo.tsv --out-dir /tmp/y
+注释输入错误: 转录本表 .../regression_bad_transcripts.tsv 第 2 行: 外显子
+起点乱序或与前一外显子重叠（20 < 30；外显子须按坐标递增且互不重叠）
+```
+
+### 8.8 回归测试
+
+`tests/test_annot.py` 的 35 个测试覆盖：微型参考上“首密码子跨接缝”的
+剪接与两段各自不整除 3 的情形、正/负链接缝与坐标方向、同位点不同
+异构体、多 ALT、双碱基合改、跨两密码子、终止获得/丢失、同义（含
+`*`→`*`）、CDS 两端点、外显子末端、boundary/intron/utr/intergenic/
+noncoding_exon/unsupported_edit 全部类别、排序键、TSV 与 JSONL 等值、
+独立核对器逐行一致、流式写出（首条 emit 后文件已可见），以及 REF 错配、
+外显子重叠、缺失 contig、重复 FASTA 名、重复 id、非法碱基、CDS 长度
+不整除、非空输出目录的子进程退出码与报错行号。原有入口（`run`、
+`demux`、`query`、`assoc`、`trio`）的测试继续全部通过。
+
+## 9. 测试
 
 ```bash
 python3 -I -m unittest discover -s tests -v
@@ -492,6 +709,13 @@ CRC 损坏/尾部垃圾的精确记录序号、多 member 读回）、双端错�
 行为、U=0 与错配边界、目标目录规则，以及 CLI 退出码（0/1/2）的子进程
 回归。
 
+注释另有 35 个回归（`tests/test_annot.py`）：微型参考上首密码子跨接缝的
+剪接、正/负链接缝与坐标方向、同位点不同异构体、多 ALT、双碱基合改、
+跨两密码子、终止获得/丢失、同义（含 `*`→`*`）、CDS 端点、外显子末端、
+全部区域类别、排序键、TSV 与 JSONL 等值、独立核对器逐行一致、流式
+写出，以及 REF 错配/外显子重叠/重复 FASTA 名/非法碱基等失败路径的
+退出码与行号（详见第 8.8 节）。
+
 家系筛查另有 41 个回归（`tests/test_trio.py`）：补全去重与相位无关、
 含缺失多等位的三类判定、低深度整调用未知与阈值翻转、非二倍体单列、
 家系表全部结构性非法（缺列/三人相同/重复/矛盾父母/环/缺样本/重复样本
@@ -500,7 +724,7 @@ CRC 损坏/尾部垃圾的精确记录序号、多 member 读回）、双端错�
 码（0/1/2）子进程回归；另由 `tools/trio_exhaustive_check.py` 做不导入
 产品补全/传递函数的独立穷举逐行核对。
 
-## 9. 家系三人组遗传一致性筛查（trio）
+## 10. 家系三人组遗传一致性筛查（trio）
 
 `trio` 子命令读取**联合分型的多样本 VCF**（普通或 gzip，按魔数识别，
 与文件名无关）与一份四列家系表，逐位点、逐三人组解释二倍体遗传是否
@@ -509,7 +733,7 @@ CRC 损坏/尾部垃圾的精确记录序号、多 member 读回）、双端错�
 筛查：不据此声称亲缘关系，也不输出临床诊断。仅依赖 Python 3.11
 标准库。
 
-### 9.1 输入与参数
+### 10.1 输入与参数
 
 ```bash
 python3 -I run_pipeline.py trio \
@@ -534,7 +758,7 @@ python3 -I run_pipeline.py trio \
   单次 `os.replace` 发布，再写成功状态——后半段坏记录不会留下看似
   完成的摘要。
 
-### 9.2 位点与调用校验（选中行）
+### 10.2 位点与调用校验（选中行）
 
 * 列数与样本数吻合；POS 为正整数；REF 与各 ALT 是互不重复的非空
   A/C/G/T 序列；ALT 至多 4 个；
@@ -547,7 +771,7 @@ python3 -I run_pipeline.py trio \
   三倍体 `1/2/3`）单列为 `unsupported` 并指明成员，**不**截成两个
   等位再算，也不混入三个判定类别。
 
-### 9.3 缺失与深度语义
+### 10.3 缺失与深度语义
 
 * DP 缺失或 `< --min-dp` 时，该人该位点的**整个调用视为未知**：原 GT
   原样保留，同时记录原因 `dp_missing`/`dp_below_min`；其已知等位不再
@@ -555,7 +779,7 @@ python3 -I run_pipeline.py trio \
 * 深度足够时 `0/.`、`./1` 保留已知那一半；单个 `.` 与 `./.`、`.|.`
   都表示完全未知。
 
-### 9.4 判定定义（精确问题）
+### 10.4 判定定义（精确问题）
 
 把父亲、母亲、孩子各自缺失的等位值，用该位点**全部合法编号**补全，
 得到所有不同的**无序**二倍体基因型（相位 `|` 不影响计算，`0/1` 与
@@ -572,7 +796,7 @@ python3 -I run_pipeline.py trio \
 可解释时附**一组**父方/母方传递见证；不可解释时不编造传递。不会只
 找到一种可行组合就断言一致，也不会遇到一个点就放弃整个家庭。
 
-### 9.5 输出（写到 `--out-dir`）
+### 10.5 输出（写到 `--out-dir`）
 
 * `trio_details.tsv`：按输入顺序逐位点、逐三人组的明细，列含
   `line_no/chrom/pos/ref/alt`、`family/child/father/mother`、三人的
@@ -585,7 +809,7 @@ python3 -I run_pipeline.py trio \
 * `trio_status.json`：**完整读完输入并关闭输出后**才写的成功状态，
   含选中/跳过位点数、各三人组与全量计数、输出路径与免责声明。
 
-### 9.6 演示（data/trio，min-dp=10，白名单 chr1,chr2）
+### 10.6 演示（data/trio，min-dp=10，白名单 chr1,chr2）
 
 家系表含共享父母的两个孩子 CH1/CH2（父母 FA/MO）与多代关系
 （FA 的父母 GF/GM）。下表为 CH1 三人组在各 chr1 位点的手算结论：
@@ -614,7 +838,7 @@ incompatible、CH2 全参考为 compatible。
 可信、固定为 `1/1`，同一行翻转为 incompatible（`1/1 + 0/0` 凑不出
 `0/0`）。原 GT `1/1` 在两种阈值下都原样保留在明细里。
 
-### 9.7 独立穷举核对器
+### 10.7 独立穷举核对器
 
 `tools/trio_exhaustive_check.py` **不导入** `vcfpipe.trio` 的任何补全/
 传递/判定函数，只用标准库重新实现解析、无序补全与笛卡尔积枚举，对
@@ -628,7 +852,7 @@ python3 -I tools/trio_exhaustive_check.py \
 # 判定类别全部一致。
 ```
 
-### 9.8 失败例子与退出码
+### 10.8 失败例子与退出码
 
 退出码：0 成功；1 记录/流损坏（坏 GT、越界、负 DP、损坏行、IO）；
 2 配置/关系错误（家系表、白名单、阈值、缺样本、循环、重复样本列）。
@@ -642,7 +866,7 @@ python3 -I tools/trio_exhaustive_check.py \
 # 正常数据后接坏行：退出码 1，out-dir 不发布、无 staging 残留
 ```
 
-### 9.9 流式与内存
+### 10.9 流式与内存
 
 处理全程流式：任何时刻只持有当前 VCF 行与每三人组的四个计数器，
 内存只与家庭数有关，不随位点数增长。5 万个位点的合成 VCF 实测约

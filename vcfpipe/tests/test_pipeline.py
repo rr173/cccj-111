@@ -280,17 +280,23 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(before, again["outputs"])
 
     def test_version_conflict_on_tampered_input(self):
+        # 注意：本测试只覆盖“抛出版本冲突”这一半语义；冲突后已发布目录
+        # 逐文件不变、查询不变的另一半语义由
+        # tests/test_publish_integrity.py 的子进程回归覆盖。
         tamper_dir = tempfile.mkdtemp(prefix="vcfpipe_tamper_")
         try:
             run_pipeline(tamper_dir, FA, DICT, SHEET, PRIO, "v1")
             with open(SHEET, encoding="utf-8") as fh:
                 original = fh.read()
-            with open(SHEET, "a", encoding="utf-8") as fh:
-                fh.write("\n")  # 改变样本表字节但不改变语义
-            with self.assertRaises(VersionConflict):
-                run_pipeline(tamper_dir, FA, DICT, SHEET, PRIO, "v1")
-            with open(SHEET, "w", encoding="utf-8", newline="") as fh:
-                fh.write(original)
+            try:
+                with open(SHEET, "a", encoding="utf-8") as fh:
+                    fh.write("\n")  # 改变样本表字节但不改变语义
+                with self.assertRaises(VersionConflict):
+                    run_pipeline(tamper_dir, FA, DICT, SHEET, PRIO, "v1")
+            finally:
+                # 即使断言失败也必须还原样本表，否则会污染仓库数据
+                with open(SHEET, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(original)
         finally:
             shutil.rmtree(tamper_dir, ignore_errors=True)
 

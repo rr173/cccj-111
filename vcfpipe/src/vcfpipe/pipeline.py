@@ -10,19 +10,41 @@
    caller 优先级显式可配，冲突保留全部来源证据；
 5. 写分区事实表、样本矩阵、证据表、追踪表、合并 VCF、清单。
 
-版本保护
---------
-数据集目录名为 ``{target_assembly}_{rule_version}``。同目录重跑必须
-逐字节得到相同清单，否则抛出 :class:`VersionConflict`；换 assembly 或
-规则版本会得到新的 dataset_id，绝不原地覆盖旧版本。
+版本保护与发布协议
+------------------
+数据集目录名为 ``{target_assembly}_{rule_version}``。一个已发布的
+dataset_id 永久对应同一份完整内容：
+
+* 全部输出（含 manifest.json）先写入 ``out_root`` 下的隐藏 staging
+  目录 ``.{dataset_id}.staging-*``，再经**单个 ``os.rename`` 系统调用**
+  原子发布为最终目录——查询侧任意时刻要么看到旧完整版本，要么看到
+  新完整版本，绝不会读到“部分新分区 + 旧清单”的中间态；
+* 相同输入重跑得到逐字节相同的清单：幂等成功，已发布目录不被触碰；
+  任何实质差异（清单字节不同）抛出 :class:`VersionConflict`，
+  拒绝前后旧目录的每个文件与查询结果完全一致；
+* 首次构建失败（含进程被终止）不会留下看似可查询的半成品：
+  staging 是隐藏目录，查询链只读最终目录；
+* 同一 dataset_id 的构建经 POSIX ``flock`` 互斥（锁文件
+  ``.{dataset_id}.lock``）。锁随 fd 关闭释放，进程退出/被 SIGKILL
+  时由内核回收，不会留下永久阻塞后续运行的占用；锁文件本身不携带
+  状态，可安全留存。持锁期间清理本数据集残留的 staging 目录——
+  此时它们只可能属于已退出的进程。
 """
 from __future__ import annotations
 
+import contextlib
 import csv
 import hashlib
 import json
 import os
+import shutil
+import tempfile
 from dataclasses import dataclass
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - 非 POSIX 平台
+    fcntl = None
 
 from .contigs import ContigMapping
 from .fasta import Reference
@@ -473,6 +495,107 @@ def build_manifest(
     }
 
 
+# --------------------------------------------------------------------------- #
+# 发布协议：staging -> 清单比对 -> 原子 rename（提交边界）
+# --------------------------------------------------------------------------- #
+def _lock_path(out_root: str, dataset_id: str) -> str:
+    return os.path.join(out_root, f".{dataset_id}.lock")
+
+
+def _staging_prefix(dataset_id: str) -> str:
+    return f".{dataset_id}.staging-"
+
+
+@contextlib.contextmanager
+def _dataset_lock(out_root: str, dataset_id: str):
+    """同一 dataset_id 的构建互斥（POSIX flock，建议性锁）。
+
+    锁随 fd 关闭释放；进程崩溃或被 SIGKILL 时由内核自动回收，
+    不会留下永久阻塞后续运行的占用。锁文件本身只是空载体，可安全留存。
+    """
+    if fcntl is None:  # pragma: no cover - 非 POSIX 平台
+        raise RuntimeError("数据集构建互斥需要 POSIX fcntl 支持")
+    fd = os.open(_lock_path(out_root, dataset_id),
+                 os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
+
+
+def _remove_stale_staging(out_root: str, dataset_id: str) -> None:
+    """清理本数据集残留的 staging 目录。
+
+    仅在持锁时调用：任何存活的构建进程都持有该数据集的锁，因此此时
+    残留的 staging 只可能属于已退出（含被 SIGKILL）的进程，删除安全。
+    """
+    prefix = _staging_prefix(dataset_id)
+    for name in os.listdir(out_root):
+        path = os.path.join(out_root, name)
+        if name.startswith(prefix) and os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
+
+
+def _manifest_bytes_equal(a: bytes, b: bytes) -> bool:
+    """规范化尾部换行后逐字节比较（历史文件可能缺最后一个换行）。"""
+    return a.rstrip(b"\n") == b.rstrip(b"\n")
+
+
+def _fsync_tree(root: str) -> None:
+    """rename 前把 staging 内全部文件刷盘，保证提交边界的崩溃耐久性。"""
+    for dirpath, _dirs, files in os.walk(root):
+        for name in files:
+            fd = os.open(os.path.join(dirpath, name), os.O_RDONLY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+
+
+def _fsync_dir(path: str) -> None:
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _publish_dataset(staging: str, out_dir: str, payload: bytes,
+                     manifest: dict) -> dict:
+    """把 staging 中的完整结果原子发布为 ``out_dir``；已有内容时做版本保护。
+
+    仅在持锁时调用。三种情形：
+
+    * 已发布且清单逐字节一致 -> 幂等确认，已发布目录不被触碰；
+    * 已发布但清单不同 -> :class:`VersionConflict`，旧目录保持原样；
+    * 尚未发布 -> 单个 ``os.rename`` 原子提交，查询侧不会看到中间态。
+    """
+    final_manifest = os.path.join(out_dir, "manifest.json")
+    if os.path.isdir(out_dir):
+        if os.path.exists(final_manifest):
+            with open(final_manifest, "rb") as fh:
+                old = fh.read()
+            if _manifest_bytes_equal(old, payload):
+                return manifest  # 内容完全一致：确认已存在，幂等成功
+            raise VersionConflict(
+                f"{final_manifest} 已存在且内容不同；拒绝原地覆盖，"
+                f"已发布目录未被改动。更换 assembly/规则版本会生成新 "
+                f"dataset_id。")
+        if os.listdir(out_dir):
+            raise RuntimeError(
+                f"{out_dir} 已存在但不是完整已发布数据集（缺 "
+                f"manifest.json）；拒绝覆盖，请人工核查后移走或删除。")
+        os.rmdir(out_dir)  # 空目录：让位给下面的原子 rename
+    elif os.path.lexists(out_dir):
+        raise RuntimeError(f"{out_dir} 已存在且不是目录；拒绝覆盖。")
+
+    _fsync_tree(staging)
+    os.rename(staging, out_dir)  # 提交边界：单个 rename 系统调用
+    _fsync_dir(os.path.dirname(os.path.abspath(out_dir)))
+    return manifest
+
+
 def run_pipeline(
     out_root: str, fasta_path: str, contig_dict_path: str,
     sample_sheet_path: str, priority_path: str, rule_version: str = "v1",
@@ -485,32 +608,38 @@ def run_pipeline(
 
     dataset_id = f"{mapping.target_assembly}_{rule.rule_version}"
     out_dir = os.path.join(out_root, dataset_id)
-    os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(out_root, exist_ok=True)
 
-    result = process_sources(sample_rows, reference, mapping, rule)
-    merged = merge_records(result.included, priority)
-    written = write_outputs(
-        out_dir, merged, result.quarantined, result.lineage, result.sources,
-        reference, mapping, rule, priority)
+    # 同一 dataset_id 的构建全程互斥：staging 写入、清单比对与原子发布
+    # 都在锁内，并发构建被串行化，只有一个完整结果能成为发布版本。
+    with _dataset_lock(out_root, dataset_id):
+        _remove_stale_staging(out_root, dataset_id)
+        staging = tempfile.mkdtemp(prefix=_staging_prefix(dataset_id),
+                                   dir=out_root)
+        try:
+            result = process_sources(sample_rows, reference, mapping, rule)
+            merged = merge_records(result.included, priority)
+            written = write_outputs(
+                staging, merged, result.quarantined, result.lineage,
+                result.sources, reference, mapping, rule, priority)
 
-    manifest = build_manifest(
-        dataset_id, mapping, rule, priority, reference, result.sources,
-        result, written, sample_sheet_path, contig_dict_path)
-    # merged_variant_rows 需要在合并后修正
-    manifest["totals"]["merged_variant_rows"] = len(merged)
+            manifest = build_manifest(
+                dataset_id, mapping, rule, priority, reference,
+                result.sources, result, written, sample_sheet_path,
+                contig_dict_path)
+            # merged_variant_rows 需要在合并后修正
+            manifest["totals"]["merged_variant_rows"] = len(merged)
 
-    manifest_path = os.path.join(out_dir, "manifest.json")
-    # 统一以“渲染文本 + 单个换行”作为落盘形态，比较两侧都规范化，
-    # 避免历史文件的尾换行造成假性版本冲突。
-    payload = (json.dumps(manifest, indent=2, sort_keys=True,
-                          ensure_ascii=False) + "\n").encode("utf-8")
-    if os.path.exists(manifest_path):
-        with open(manifest_path, "rb") as fh:
-            old = fh.read()
-        if old != payload:
-            raise VersionConflict(
-                f"{manifest_path} 已存在且内容不同；拒绝原地覆盖。"
-                f"更换 assembly/规则版本会生成新 dataset_id。")
-    with open(manifest_path, "wb") as fh:
-        fh.write(payload)
-    return manifest
+            # 统一以“渲染文本 + 单个换行”作为落盘形态，比较两侧都规范化，
+            # 避免历史文件的尾换行造成假性版本冲突。
+            payload = (json.dumps(manifest, indent=2, sort_keys=True,
+                                  ensure_ascii=False) + "\n").encode("utf-8")
+            with open(os.path.join(staging, "manifest.json"), "wb") as fh:
+                fh.write(payload)
+
+            return _publish_dataset(staging, out_dir, payload, manifest)
+        finally:
+            # 失败/异常（含 VersionConflict）时清掉本次 staging；发布成功
+            # 后 staging 已被 rename 走，rmtree 自然空转。进程被 SIGKILL
+            # 时的残留由下一次持锁构建的 _remove_stale_staging 清理。
+            shutil.rmtree(staging, ignore_errors=True)
